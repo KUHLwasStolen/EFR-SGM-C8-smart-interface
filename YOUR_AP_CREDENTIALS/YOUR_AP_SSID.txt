@@ -1,0 +1,1 @@
+YOUR AP SSID (max 32 chars)

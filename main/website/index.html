@@ -1,0 +1,41 @@
+<h1><b><u>EFR-SGM-C8</u></b></h1>
+<h2>
+    Power: <span id="power-text" style="color: black"><span id="power-value">0</span> W</span> (<span id="power-status">N/A</span>)
+</h2>
+<h3>
+    <p>L1: <span id="power-l1-value">0</span> W</p>
+    <p>L2: <span id="power-l2-value">0</span> W</p>
+    <p>L3: <span id="power-l3-value">0</span> W</p>
+</h3>
+
+<script>
+    function reqListener() {
+        const jsonObj = JSON.parse(this.responseText);
+
+        console.log(jsonObj.power + " W");
+        document.getElementById("power-value").innerHTML = jsonObj.power;
+        document.getElementById("power-l1-value").innerHTML = jsonObj.l1;
+        document.getElementById("power-l2-value").innerHTML = jsonObj.l2;
+        document.getElementById("power-l3-value").innerHTML = jsonObj.l3;
+
+        var currentPower = parseInt(jsonObj.power);
+
+        if(currentPower <= 0) {
+            document.getElementById("power-text").style.color = "green";
+            document.getElementById("power-status").innerHTML = "giving away";
+        } else {
+            document.getElementById("power-text").style.color = "red";
+            document.getElementById("power-status").innerHTML = "buying";
+        }
+    }
+    
+    function updatePower() {
+        const req = new XMLHttpRequest();
+        req.addEventListener("load", reqListener);
+        req.open("GET", "/api/power");
+        req.send();
+    }
+
+    updatePower();
+    setInterval(updatePower, 5000);
+</script>
