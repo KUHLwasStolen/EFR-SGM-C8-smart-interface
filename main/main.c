@@ -24,6 +24,8 @@ static EventGroupHandle_t s_wifi_event_group;
 extern const uint8_t indexHtmlFile[] asm("_binary_index_html_start");
 extern const uint8_t AP_SSID[] asm("_binary_YOUR_AP_SSID_txt_start");
 extern const uint8_t AP_PASSWORD[] asm("_binary_YOUR_AP_PASSWORD_txt_start");
+extern const uint8_t faviconPNG_start[] asm("_binary_favicon_png_start");
+extern const uint8_t faviconPNG_end[] asm("_binary_favicon_png_end");
 
 int16_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0;
 
@@ -203,11 +205,26 @@ esp_err_t GET_handler_api_power(httpd_req_t *req) {
     return ESP_OK;
 }
 
-// URI handler structure for GET "/"
+// URI handler structure for GET "/api/power"
 httpd_uri_t uri_GET_api_power = {
     .uri      = "/api/power",
     .method   = HTTP_GET,
     .handler  = GET_handler_api_power,
+    .user_ctx = NULL
+};
+
+esp_err_t GET_handler_favicon(httpd_req_t *req) {
+    httpd_resp_set_type(req, "image/png");
+    httpd_resp_send(req, (char*)faviconPNG_start, faviconPNG_end - faviconPNG_start);
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/favicon.ico\"");
+    return ESP_OK;
+}
+
+// URI handler structure for GET "/favicon.ico
+httpd_uri_t uri_GET_favicon = {
+    .uri      = "/favicon.ico",
+    .method   = HTTP_GET,
+    .handler  = GET_handler_favicon,
     .user_ctx = NULL
 };
 
@@ -223,6 +240,7 @@ httpd_handle_t start_webserver() {
     if (httpd_start(&server, &config) == ESP_OK) {
         httpd_register_uri_handler(server, &uri_GET);
         httpd_register_uri_handler(server, &uri_GET_api_power);
+        httpd_register_uri_handler(server, &uri_GET_favicon);
     }
 
     // handle == NULL if start failed
