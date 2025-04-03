@@ -27,7 +27,8 @@ extern const uint8_t AP_PASSWORD[] asm("_binary_YOUR_AP_PASSWORD_txt_start");
 extern const uint8_t faviconPNG_start[] asm("_binary_favicon_png_start");
 extern const uint8_t faviconPNG_end[] asm("_binary_favicon_png_end");
 
-int16_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0;
+int16_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0; // in W
+float importOverall = 0.0f, exportOverall = 0.0f; // in kWh
 
 // To decode the SML messages
 static void irReaderTask(void* args) {
@@ -48,12 +49,14 @@ static void irReaderTask(void* args) {
     QueueHandle_t uart_queue;
 
     ESP_ERROR_CHECK(uart_driver_install(irUART, uart_buffer_size, uart_buffer_size, 10, &uart_queue, 0));
-    // ESP_ERROR_CHECK(uart_enable_pattern_det_baud_intr(irUART, 0x1B, 4, 4, 0, 50));
 
+    // All of these values are temporary and used by multiple code segments!!!
+    // Only use them as placeholders for extracting information from the SML messages!!!
     uint8_t buffer[uart_buffer_size] = {};
     uint16_t readLength = 0;
-    uint8_t powerID;
-    uint8_t powerLength;
+    uint8_t valueID;
+    uint8_t valueLength;
+    uint32_t meterReadRaw = 0;
 
     while(1) {
         readLength = uart_read_bytes(irUART, buffer, uart_buffer_size, 300 / portTICK_PERIOD_MS);
@@ -61,15 +64,17 @@ static void irReaderTask(void* args) {
         if(readLength > 0) {
             ESP_LOGI("UART", "New Message (size: %u):", readLength);
 
-            powerID = 0;
-            powerLength = 0;
+            valueID = 0;
+            valueLength = 0;
 
-            for(int i = 0; i < readLength; i++) {
+            for(uint16_t i = 0; i < readLength; i++) {
 
-                // Power:   77 07 01 00 10 07 00 ff
-                // L1:      77 07 01 00 24 07 00 ff
-                // L2:      77 07 01 00 38 07 00 ff
-                // L3:      77 07 01 00 4c 07 00 ff
+                // Power:           77 07 01 00 10 07 00 FF
+                // L1:              77 07 01 00 24 07 00 FF
+                // L2:              77 07 01 00 38 07 00 FF
+                // L3:              77 07 01 00 4C 07 00 FF
+                // Meter reading:   77 07 01 00 01 08 00 FF
+                // Feed-in:         77 07 01 00 02 08 00 FF
                 if(buffer[i] == 0x77) {
                     if(buffer[i+1] == 0x07) {
                         if(buffer[i+2] == 0x01) {
@@ -78,10 +83,10 @@ static void irReaderTask(void* args) {
                                     if(buffer[i+5] == 0x07) {
                                         if(buffer[i+6] == 0x00) {
                                             if(buffer[i+7] == 0xFF) {
-                                                powerID = buffer[i+13];
-                                                powerLength = ((uint8_t)(powerID << 4)) >> 4;
+                                                valueID = buffer[i+13];
+                                                valueLength = ((uint8_t)(valueID << 4)) >> 4;
                                                 
-                                                switch(powerLength) {
+                                                switch(valueLength) {
                                                     case 1: 
                                                         currentPower = 0;
                                                     break;
@@ -101,10 +106,10 @@ static void irReaderTask(void* args) {
                                     if(buffer[i+5] == 0x07) {
                                         if(buffer[i+6] == 0x00) {
                                             if(buffer[i+7] == 0xFF) {
-                                                powerID = buffer[i+13];
-                                                powerLength = ((uint8_t)(powerID << 4)) >> 4;
+                                                valueID = buffer[i+13];
+                                                valueLength = ((uint8_t)(valueID << 4)) >> 4;
                                                 
-                                                switch(powerLength) {
+                                                switch(valueLength) {
                                                     case 1: 
                                                         currentPowerL1 = 0;
                                                     break;
@@ -124,10 +129,10 @@ static void irReaderTask(void* args) {
                                     if(buffer[i+5] == 0x07) {
                                         if(buffer[i+6] == 0x00) {
                                             if(buffer[i+7] == 0xFF) {
-                                                powerID = buffer[i+13];
-                                                powerLength = ((uint8_t)(powerID << 4)) >> 4;
+                                                valueID = buffer[i+13];
+                                                valueLength = ((uint8_t)(valueID << 4)) >> 4;
                                                 
-                                                switch(powerLength) {
+                                                switch(valueLength) {
                                                     case 1: 
                                                         currentPowerL2 = 0;
                                                     break;
@@ -147,10 +152,10 @@ static void irReaderTask(void* args) {
                                     if(buffer[i+5] == 0x07) {
                                         if(buffer[i+6] == 0x00) {
                                             if(buffer[i+7] == 0xFF) {
-                                                powerID = buffer[i+13];
-                                                powerLength = ((uint8_t)(powerID << 4)) >> 4;
+                                                valueID = buffer[i+13];
+                                                valueLength = ((uint8_t)(valueID << 4)) >> 4;
                                                 
-                                                switch(powerLength) {
+                                                switch(valueLength) {
                                                     case 1: 
                                                         currentPowerL3 = 0;
                                                     break;
@@ -166,6 +171,42 @@ static void irReaderTask(void* args) {
                                             }
                                         }
                                     }
+                                } else if(buffer[i+4] == 0x01) { // meter reading overall
+                                    if(buffer[i+5] == 0x08) {
+                                        if(buffer[i+6] == 0x00) {
+                                            if(buffer[i+7] == 0xFF) {
+                                                if(buffer[i+21] == 0x52 && buffer[i+22] == 0xFF) {
+                                                    valueID = buffer[i+23];
+                                                    valueLength = ((uint8_t)(valueID << 4)) >> 4;
+
+                                                    meterReadRaw = 0;
+                                                    for(uint8_t j = 0; j < valueLength - 1; j++) {
+                                                        meterReadRaw += (uint32_t)(buffer[i+23+valueLength-1-j]) << (j*8);
+                                                    }
+
+                                                    importOverall = meterReadRaw / 10000.0f;
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if(buffer[i+4] == 0x02) { // feed-in overall
+                                    if(buffer[i+5] == 0x08) {
+                                        if(buffer[i+6] == 0x00) {
+                                            if(buffer[i+7] == 0xFF) {
+                                                if(buffer[i+21] == 0x52 && buffer[i+22] == 0xFF) {
+                                                    valueID = buffer[i+23];
+                                                    valueLength = ((uint8_t)(valueID << 4)) >> 4;
+
+                                                    meterReadRaw = 0;
+                                                    for(uint8_t j = 0; j < valueLength - 1; j++) {
+                                                        meterReadRaw += (uint32_t)(buffer[i+23+valueLength-1-j]) << (j*8);
+                                                    }
+
+                                                    exportOverall = meterReadRaw / 10000.0f;
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -173,7 +214,8 @@ static void irReaderTask(void* args) {
                 }
             }
 
-            ESP_LOGI("Power", "Overall: %d  L1: %d  L2: %d  L3: %d\n", currentPower, currentPowerL1, currentPowerL2, currentPowerL3);
+            ESP_LOGI("Power", "Overall: %d  L1: %d  L2: %d  L3: %d", currentPower, currentPowerL1, currentPowerL2, currentPowerL3);
+            ESP_LOGI("Meter readings", "Import: %.3f  Export: %.3f", importOverall, exportOverall);
 
             ESP_ERROR_CHECK(uart_flush_input(irUART));
         }
@@ -196,33 +238,33 @@ httpd_uri_t uri_GET = {
     .user_ctx = NULL
 };
 
-esp_err_t GET_handler_api_power(httpd_req_t *req) {
-    char resp[64];
-    sprintf(resp, "{\"power\":%hi, \"l1\":%hi, \"l2\":%hi, \"l3\":%hi}", currentPower, currentPowerL1, currentPowerL2, currentPowerL3);
+esp_err_t GET_handler_api_all(httpd_req_t *req) {
+    char resp[128];
+    sprintf(resp, "{\"power\":{\"total\":%hi, \"l1\":%hi, \"l2\":%hi, \"l3\":%hi}, \"meter\":{\"import\":%.2f, \"export\":%.2f}}", currentPower, currentPowerL1, currentPowerL2, currentPowerL3, importOverall, exportOverall);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-    ESP_LOGI("HTTP GET", "Sent GET response for \"/api/power\"");
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/api/all\"");
     return ESP_OK;
 }
 
-// URI handler structure for GET "/api/power"
-httpd_uri_t uri_GET_api_power = {
-    .uri      = "/api/power",
+// URI handler structure for GET "/api/all"
+httpd_uri_t uri_GET_api_all = {
+    .uri      = "/api/all",
     .method   = HTTP_GET,
-    .handler  = GET_handler_api_power,
+    .handler  = GET_handler_api_all,
     .user_ctx = NULL
 };
 
 esp_err_t GET_handler_favicon(httpd_req_t *req) {
     httpd_resp_set_type(req, "image/png");
     httpd_resp_send(req, (char*)faviconPNG_start, faviconPNG_end - faviconPNG_start);
-    ESP_LOGI("HTTP GET", "Sent GET response for \"/favicon.ico\"");
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/favicon.png\"");
     return ESP_OK;
 }
 
-// URI handler structure for GET "/favicon.ico
+// URI handler structure for GET "/favicon.png
 httpd_uri_t uri_GET_favicon = {
-    .uri      = "/favicon.ico",
+    .uri      = "/favicon.png",
     .method   = HTTP_GET,
     .handler  = GET_handler_favicon,
     .user_ctx = NULL
@@ -239,7 +281,7 @@ httpd_handle_t start_webserver() {
     // Start the httpd server
     if (httpd_start(&server, &config) == ESP_OK) {
         httpd_register_uri_handler(server, &uri_GET);
-        httpd_register_uri_handler(server, &uri_GET_api_power);
+        httpd_register_uri_handler(server, &uri_GET_api_all);
         httpd_register_uri_handler(server, &uri_GET_favicon);
     }
 

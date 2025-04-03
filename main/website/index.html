@@ -1,42 +1,78 @@
 <!DOCTYPE html>
-<h1><b><u>EFR-SGM-C8</u></b></h1>
-<h2>
-    Power: <span id="power-text" style="color: black"><span id="power-value">0</span> W</span> (<span id="power-status">N/A</span>)
-</h2>
+<html lang="en">
+<head>
+<title>EFR-SGM-C8</title>
+<link rel="icon" type="image/png" href="favicon.png">
+</head>
+
+<h1><u>EFR-SGM-C8</u></h1>
+<h2>Power: <span id="power-text" style="color: black"><span id="power-value">0</span> W</span> (<span id="power-status">N/A</span>)</h2>
 <h3>
-    <p>L1: <span id="power-l1-value">0</span> W</p>
-    <p>L2: <span id="power-l2-value">0</span> W</p>
-    <p>L3: <span id="power-l3-value">0</span> W</p>
+    <p class="value">L1: <span id="power-l1-value">0</span> W</p>
+    <p class="value">L2: <span id="power-l2-value">0</span> W</p>
+    <p class="value">L3: <span id="power-l3-value">0</span> W</p>
 </h3>
+<h2>Meter readings</h2>
+<h3>
+    <p class="value">Import total: <span id="meter-import">0</span> kWh</p>
+    <p class="value">Export total: <span id="meter-export">0</span> kWh</p>
+</h3>
+</html>
 
 <script>
     function reqListener() {
         const jsonObj = JSON.parse(this.responseText);
 
-        console.log(jsonObj.power + " W");
-        document.getElementById("power-value").innerHTML = jsonObj.power;
-        document.getElementById("power-l1-value").innerHTML = jsonObj.l1;
-        document.getElementById("power-l2-value").innerHTML = jsonObj.l2;
-        document.getElementById("power-l3-value").innerHTML = jsonObj.l3;
+        document.getElementById("power-value").innerHTML = jsonObj.power.total;
+        document.getElementById("power-l1-value").innerHTML = jsonObj.power.l1;
+        document.getElementById("power-l2-value").innerHTML = jsonObj.power.l2;
+        document.getElementById("power-l3-value").innerHTML = jsonObj.power.l3;
+        document.getElementById("meter-import").innerHTML = jsonObj.meter.import;
+        document.getElementById("meter-export").innerHTML = jsonObj.meter.export;
 
         var currentPower = parseInt(jsonObj.power);
 
         if(currentPower <= 0) {
             document.getElementById("power-text").style.color = "green";
-            document.getElementById("power-status").innerHTML = "giving away";
+            document.getElementById("power-status").innerHTML = "export";
         } else {
             document.getElementById("power-text").style.color = "red";
-            document.getElementById("power-status").innerHTML = "buying";
+            document.getElementById("power-status").innerHTML = "import";
         }
     }
     
-    function updatePower() {
+    function updateAll() {
         const req = new XMLHttpRequest();
         req.addEventListener("load", reqListener);
-        req.open("GET", "/api/power");
+        req.open("GET", "/api/all");
         req.send();
     }
 
-    updatePower();
-    setInterval(updatePower, 5000);
+    updateAll();
+    setInterval(updateAll, 5000);
 </script>
+
+<style>
+    *{
+        line-height: 1.25rem;
+        line-height: calc(.25rem + 1.25vw);
+    }
+    .value {
+        margin-left: 3.5rem;
+        margin-left: calc(3rem + 2vw);
+    }
+    h1 {
+        font-size: 30px;
+        font-size: calc(.5rem + 3vw);
+    }
+    h2 {
+        margin-left: 1rem;
+        margin-left: calc(.5rem + 1vw);
+        font-size: 24px;
+        font-size: calc(.5rem + 2vw);
+    }
+    p {
+        font-size: 20px;
+        font-size: calc(.5rem + 1vw);
+    }
+</style>
