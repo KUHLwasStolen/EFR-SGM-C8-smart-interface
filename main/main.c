@@ -22,10 +22,12 @@ httpd_handle_t serverHandle = NULL;
 static EventGroupHandle_t s_wifi_event_group;
 
 extern const uint8_t indexHtmlFile[] asm("_binary_index_html_start");
-extern const uint8_t AP_SSID[] asm("_binary_YOUR_AP_SSID_txt_start");
-extern const uint8_t AP_PASSWORD[] asm("_binary_YOUR_AP_PASSWORD_txt_start");
+extern const uint8_t stylesCssFile[] asm("_binary_styles_css_start");
+extern const uint8_t updaterJsFile[] asm("_binary_updater_js_start");
 extern const uint8_t faviconPNG_start[] asm("_binary_favicon_png_start");
 extern const uint8_t faviconPNG_end[] asm("_binary_favicon_png_end");
+extern const uint8_t AP_SSID[] asm("_binary_YOUR_AP_SSID_txt_start");
+extern const uint8_t AP_PASSWORD[] asm("_binary_YOUR_AP_PASSWORD_txt_start");
 
 int16_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0; // in W
 float importOverall = 0.0f, exportOverall = 0.0f; // in kWh
@@ -68,13 +70,14 @@ static void irReaderTask(void* args) {
             valueLength = 0;
 
             for(uint16_t i = 0; i < readLength; i++) {
+                //printf("%02X ", buffer[i]);
 
                 // Power:           77 07 01 00 10 07 00 FF
                 // L1:              77 07 01 00 24 07 00 FF
                 // L2:              77 07 01 00 38 07 00 FF
                 // L3:              77 07 01 00 4C 07 00 FF
-                // Meter reading:   77 07 01 00 01 08 00 FF
-                // Feed-in:         77 07 01 00 02 08 00 FF
+                // Import overall:  77 07 01 00 01 08 00 FF
+                // Export overall:  77 07 01 00 02 08 00 FF
                 if(buffer[i] == 0x77) {
                     if(buffer[i+1] == 0x07) {
                         if(buffer[i+2] == 0x01) {
@@ -171,38 +174,62 @@ static void irReaderTask(void* args) {
                                             }
                                         }
                                     }
-                                } else if(buffer[i+4] == 0x01) { // meter reading overall
+                                } else if(buffer[i+4] == 0x01) { // import overall
                                     if(buffer[i+5] == 0x08) {
                                         if(buffer[i+6] == 0x00) {
                                             if(buffer[i+7] == 0xFF) {
-                                                if(buffer[i+21] == 0x52 && buffer[i+22] == 0xFF) {
-                                                    valueID = buffer[i+23];
-                                                    valueLength = ((uint8_t)(valueID << 4)) >> 4;
+                                                // search for 0x52FF
+                                                for(uint16_t j = i+8; j < i+30; j++) {
+                                                    if(buffer[j] == 0x52 && buffer[j+1] == 0xFF) {
+                                                        meterReadRaw = 0;
 
-                                                    meterReadRaw = 0;
-                                                    for(uint8_t j = 0; j < valueLength - 1; j++) {
-                                                        meterReadRaw += (uint32_t)(buffer[i+23+valueLength-1-j]) << (j*8);
+                                                        // search for next message to determine value length
+                                                        for(uint8_t k = 0; k < 5; k++) {
+                                                            if(buffer[j+3+k] == 0x01 && buffer[j+3+k+1] == 0x77) {
+                                                                if(k < 3) break;
+
+                                                                // now fill meterReadRaw according to length
+                                                                for(uint8_t l = 0; l < k; l++) {
+                                                                    meterReadRaw += buffer[j+3+l] << ((k-1-l)*8);
+                                                                }
+
+                                                                importOverall = meterReadRaw / 10000.0f;
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        break;
                                                     }
-
-                                                    importOverall = meterReadRaw / 10000.0f;
                                                 }
                                             }
                                         }
                                     }
-                                } else if(buffer[i+4] == 0x02) { // feed-in overall
+                                } else if(buffer[i+4] == 0x02) { // export overall
                                     if(buffer[i+5] == 0x08) {
                                         if(buffer[i+6] == 0x00) {
                                             if(buffer[i+7] == 0xFF) {
-                                                if(buffer[i+21] == 0x52 && buffer[i+22] == 0xFF) {
-                                                    valueID = buffer[i+23];
-                                                    valueLength = ((uint8_t)(valueID << 4)) >> 4;
+                                                // search for 0x52FF
+                                                for(uint16_t j = i+8; j < i+30; j++) {
+                                                    if(buffer[j] == 0x52 && buffer[j+1] == 0xFF) {
+                                                        meterReadRaw = 0;
 
-                                                    meterReadRaw = 0;
-                                                    for(uint8_t j = 0; j < valueLength - 1; j++) {
-                                                        meterReadRaw += (uint32_t)(buffer[i+23+valueLength-1-j]) << (j*8);
+                                                        // search for next message to determine value length
+                                                        for(uint8_t k = 0; k < 5; k++) {
+                                                            if(buffer[j+3+k] == 0x01 && buffer[j+3+k+1] == 0x77) {
+                                                                if(k < 3) break;
+
+                                                                // now fill meterReadRaw according to length
+                                                                for(uint8_t l = 0; l < k; l++) {
+                                                                    meterReadRaw += buffer[j+3+l] << ((k-1-l)*8);
+                                                                }
+
+                                                                exportOverall = meterReadRaw / 10000.0f;
+                                                                break;
+                                                            }
+                                                        }
+
+                                                        break;
                                                     }
-
-                                                    exportOverall = meterReadRaw / 10000.0f;
                                                 }
                                             }
                                         }
@@ -213,6 +240,7 @@ static void irReaderTask(void* args) {
                     }
                 }
             }
+            //printf("\n\n");
 
             ESP_LOGI("Power", "Overall: %d  L1: %d  L2: %d  L3: %d", currentPower, currentPowerL1, currentPowerL2, currentPowerL3);
             ESP_LOGI("Meter readings", "Import: %.3f  Export: %.3f", importOverall, exportOverall);
@@ -223,8 +251,9 @@ static void irReaderTask(void* args) {
 }
 
 // From here on everything related to the web server
-// handles http-GET requests
-esp_err_t GET_handler(httpd_req_t *req) {    
+// Handler for GET "/"
+esp_err_t GET_handler(httpd_req_t *req) {
+    httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, (char*)indexHtmlFile, HTTPD_RESP_USE_STRLEN);
     ESP_LOGI("HTTP GET", "Sent GET response for \"/\"");
     return ESP_OK;
@@ -238,6 +267,39 @@ httpd_uri_t uri_GET = {
     .user_ctx = NULL
 };
 
+// Handler for GET "/styles.css"
+esp_err_t GET_handler_styles(httpd_req_t *req) {
+    httpd_resp_set_type(req, "text/css");
+    httpd_resp_send(req, (char*)stylesCssFile, HTTPD_RESP_USE_STRLEN);
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/styles.css\"");
+    return ESP_OK;
+}
+
+// URI handler structure for GET "/styles.css"
+httpd_uri_t uri_GET_styles = {
+    .uri      = "/styles.css",
+    .method   = HTTP_GET,
+    .handler  = GET_handler_styles,
+    .user_ctx = NULL
+};
+
+// Handler for GET "/updater.js"
+esp_err_t GET_handler_updater(httpd_req_t *req) {
+    httpd_resp_set_type(req, "text/javascript");
+    httpd_resp_send(req, (char*)updaterJsFile, HTTPD_RESP_USE_STRLEN);
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/updater.js\"");
+    return ESP_OK;
+}
+
+// URI handler structure for GET "/updater.js"
+httpd_uri_t uri_GET_updater = {
+    .uri      = "/updater.js",
+    .method   = HTTP_GET,
+    .handler  = GET_handler_updater,
+    .user_ctx = NULL
+};
+
+// Handler for GET "api/all"
 esp_err_t GET_handler_api_all(httpd_req_t *req) {
     char resp[128];
     sprintf(resp, "{\"power\":{\"total\":%hi, \"l1\":%hi, \"l2\":%hi, \"l3\":%hi}, \"meter\":{\"import\":%.2f, \"export\":%.2f}}", currentPower, currentPowerL1, currentPowerL2, currentPowerL3, importOverall, exportOverall);
@@ -255,6 +317,7 @@ httpd_uri_t uri_GET_api_all = {
     .user_ctx = NULL
 };
 
+// Handler for GET "/favicon.png"
 esp_err_t GET_handler_favicon(httpd_req_t *req) {
     httpd_resp_set_type(req, "image/png");
     httpd_resp_send(req, (char*)faviconPNG_start, faviconPNG_end - faviconPNG_start);
@@ -283,6 +346,8 @@ httpd_handle_t start_webserver() {
         httpd_register_uri_handler(server, &uri_GET);
         httpd_register_uri_handler(server, &uri_GET_api_all);
         httpd_register_uri_handler(server, &uri_GET_favicon);
+        httpd_register_uri_handler(server, &uri_GET_styles);
+        httpd_register_uri_handler(server, &uri_GET_updater);
     }
 
     // handle == NULL if start failed
