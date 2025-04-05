@@ -24,13 +24,13 @@ static EventGroupHandle_t s_wifi_event_group;
 extern const uint8_t indexHtmlFile[] asm("_binary_index_html_start");
 extern const uint8_t stylesCssFile[] asm("_binary_styles_css_start");
 extern const uint8_t updaterJsFile[] asm("_binary_updater_js_start");
-extern const uint8_t faviconPNG_start[] asm("_binary_favicon_png_start");
-extern const uint8_t faviconPNG_end[] asm("_binary_favicon_png_end");
+extern const uint8_t faviconPNG_start[] asm("_binary_favicon64_png_start");
+extern const uint8_t faviconPNG_end[] asm("_binary_favicon64_png_end");
 extern const uint8_t AP_SSID[] asm("_binary_YOUR_AP_SSID_txt_start");
 extern const uint8_t AP_PASSWORD[] asm("_binary_YOUR_AP_PASSWORD_txt_start");
 
 int16_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0; // in W
-float importOverall = 0.0f, exportOverall = 0.0f; // in kWh
+float importOverall = 0.0f, importT1 = 0.0f, importT2 = 0.0f, exportOverall = 0.0f, exportT1 = 0.0f, exportT2 = 0.0f; // in kWh
 
 // To decode the SML messages
 static void irReaderTask(void* args) {
@@ -40,17 +40,17 @@ static void irReaderTask(void* args) {
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_RTS,
-        .rx_flow_ctrl_thresh = 122,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
     };
 
     ESP_ERROR_CHECK(uart_param_config(irUART, &irConfig));
-    ESP_ERROR_CHECK(uart_set_pin(irUART, 21, 18, 22, 23));
+    ESP_ERROR_CHECK(uart_set_pin(irUART, 21, 18, (UART_PIN_NO_CHANGE), (UART_PIN_NO_CHANGE)));
 
     const int uart_buffer_size = 1200 * 2;
     QueueHandle_t uart_queue;
 
-    ESP_ERROR_CHECK(uart_driver_install(irUART, uart_buffer_size, uart_buffer_size, 10, &uart_queue, 0));
+    ESP_ERROR_CHECK(uart_driver_install(irUART, uart_buffer_size, 0, 1, &uart_queue, 0));
 
     // All of these values are temporary and used by multiple code segments!!!
     // Only use them as placeholders for extracting information from the SML messages!!!
@@ -61,7 +61,7 @@ static void irReaderTask(void* args) {
     uint32_t meterReadRaw = 0;
 
     while(1) {
-        readLength = uart_read_bytes(irUART, buffer, uart_buffer_size, 300 / portTICK_PERIOD_MS);
+        readLength = uart_read_bytes(irUART, buffer, uart_buffer_size - 1, 300 / portTICK_PERIOD_MS);
 
         if(readLength > 0) {
             ESP_LOGI("UART", "New Message (size: %u):", readLength);
@@ -174,9 +174,9 @@ static void irReaderTask(void* args) {
                                             }
                                         }
                                     }
-                                } else if(buffer[i+4] == 0x01) { // import overall
+                                } else if(buffer[i+4] == 0x01 || buffer[i+4] == 0x02) { // import, export
                                     if(buffer[i+5] == 0x08) {
-                                        if(buffer[i+6] == 0x00) {
+                                        if(buffer[i+6] == 0x00 || buffer[i+6] == 0x01 || buffer[i+6] == 0x02) {
                                             if(buffer[i+7] == 0xFF) {
                                                 // search for 0x52FF
                                                 for(uint16_t j = i+8; j < i+30; j++) {
@@ -184,7 +184,7 @@ static void irReaderTask(void* args) {
                                                         meterReadRaw = 0;
 
                                                         // search for next message to determine value length
-                                                        for(uint8_t k = 0; k < 5; k++) {
+                                                        for(uint8_t k = 2; k < 6; k++) {
                                                             if(buffer[j+3+k] == 0x01 && buffer[j+3+k+1] == 0x77) {
                                                                 if(k < 3) break;
 
@@ -193,37 +193,40 @@ static void irReaderTask(void* args) {
                                                                     meterReadRaw += buffer[j+3+l] << ((k-1-l)*8);
                                                                 }
 
-                                                                importOverall = meterReadRaw / 10000.0f;
-                                                                break;
-                                                            }
-                                                        }
+                                                                switch(buffer[i+4]) {
+                                                                    case 0x01: // import
+                                                                        switch(buffer[i+6]) {
+                                                                            case 0x00:
+                                                                                importOverall = meterReadRaw / 10000.0f;
+                                                                            break;
 
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else if(buffer[i+4] == 0x02) { // export overall
-                                    if(buffer[i+5] == 0x08) {
-                                        if(buffer[i+6] == 0x00) {
-                                            if(buffer[i+7] == 0xFF) {
-                                                // search for 0x52FF
-                                                for(uint16_t j = i+8; j < i+30; j++) {
-                                                    if(buffer[j] == 0x52 && buffer[j+1] == 0xFF) {
-                                                        meterReadRaw = 0;
+                                                                            case 0x01:
+                                                                                importT1 = meterReadRaw / 10000.0f;
+                                                                            break;
 
-                                                        // search for next message to determine value length
-                                                        for(uint8_t k = 0; k < 5; k++) {
-                                                            if(buffer[j+3+k] == 0x01 && buffer[j+3+k+1] == 0x77) {
-                                                                if(k < 3) break;
+                                                                            case 0x02:
+                                                                                importT2 = meterReadRaw / 10000.0f;
+                                                                            break;
+                                                                        }
+                                                                    break;
 
-                                                                // now fill meterReadRaw according to length
-                                                                for(uint8_t l = 0; l < k; l++) {
-                                                                    meterReadRaw += buffer[j+3+l] << ((k-1-l)*8);
+                                                                    case 0x02: // export
+                                                                        switch(buffer[i+6]) {
+                                                                            case 0x00:
+                                                                                exportOverall = meterReadRaw / 10000.0f;
+                                                                            break;
+
+                                                                            case 0x01:
+                                                                                exportT1 = meterReadRaw / 10000.0f;
+                                                                            break;
+
+                                                                            case 0x02:
+                                                                                exportT2 = meterReadRaw / 10000.0f;
+                                                                            break;
+                                                                        }
+                                                                    break;
                                                                 }
 
-                                                                exportOverall = meterReadRaw / 10000.0f;
                                                                 break;
                                                             }
                                                         }
@@ -243,7 +246,7 @@ static void irReaderTask(void* args) {
             //printf("\n\n");
 
             ESP_LOGI("Power", "Overall: %d  L1: %d  L2: %d  L3: %d", currentPower, currentPowerL1, currentPowerL2, currentPowerL3);
-            ESP_LOGI("Meter readings", "Import: %.3f  Export: %.3f", importOverall, exportOverall);
+            ESP_LOGI("Meter readings", "Import: %.3f  T1: %.3f  T2: %.3f  Export: %.3f  T1: %.3f  T2: %.3f", importOverall, importT1, importT2, exportOverall, exportT1, exportT2);
 
             ESP_ERROR_CHECK(uart_flush_input(irUART));
         }
@@ -301,8 +304,8 @@ httpd_uri_t uri_GET_updater = {
 
 // Handler for GET "api/all"
 esp_err_t GET_handler_api_all(httpd_req_t *req) {
-    char resp[128];
-    sprintf(resp, "{\"power\":{\"total\":%hi, \"l1\":%hi, \"l2\":%hi, \"l3\":%hi}, \"meter\":{\"import\":%.2f, \"export\":%.2f}}", currentPower, currentPowerL1, currentPowerL2, currentPowerL3, importOverall, exportOverall);
+    char resp[1024];
+    sprintf(resp, "{\"power\":{\"total\":%hi, \"l1\":%hi, \"l2\":%hi, \"l3\":%hi}, \"meter\":{\"import\":{\"total\":%.2f, \"t1\":%.2f, \"t2\":%.2f}, \"export\":{\"total\":%.2f, \"t1\":%.2f, \"t2\":%.2f}}}", currentPower, currentPowerL1, currentPowerL2, currentPowerL3, importOverall, importT1, importT2, exportOverall, exportT1, exportT2);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
     ESP_LOGI("HTTP GET", "Sent GET response for \"/api/all\"");

@@ -5,8 +5,12 @@ function reqListener() {
 	document.getElementById("power-l1-value").innerHTML = jsonObj.power.l1;
 	document.getElementById("power-l2-value").innerHTML = jsonObj.power.l2;
 	document.getElementById("power-l3-value").innerHTML = jsonObj.power.l3;
-	document.getElementById("meter-import").innerHTML = jsonObj.meter.import;
-	document.getElementById("meter-export").innerHTML = jsonObj.meter.export;
+	document.getElementById("meter-import").innerHTML = jsonObj.meter.import.total;
+  document.getElementById("meter-import-t1").innerHTML = jsonObj.meter.import.t1;
+  document.getElementById("meter-import-t2").innerHTML = jsonObj.meter.import.t2;
+	document.getElementById("meter-export").innerHTML = jsonObj.meter.export.total;
+  document.getElementById("meter-export-t1").innerHTML = jsonObj.meter.export.t1;
+  document.getElementById("meter-export-t2").innerHTML = jsonObj.meter.export.t2;
 
 	var currentPower = parseInt(jsonObj.power.total);
 	if (currentPower < 0) {
