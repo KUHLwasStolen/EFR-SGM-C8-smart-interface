@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "driver/gpio.h"
 #include "driver/uart.h"
@@ -21,11 +22,16 @@ uint8_t wifi_retries = 0;
 httpd_handle_t serverHandle = NULL;
 static EventGroupHandle_t s_wifi_event_group;
 
+void insertAtFirstIndex(float* arr, uint16_t len, float value);
+float median(float* arr, uint16_t len);
+int compareFloat(const void* f1, const void* f2);
+void addToMedianArr(float* arr, uint8_t* sizeCounter, float value);
+
 extern const uint8_t indexHtmlFile[] asm("_binary_index_html_start");
 extern const uint8_t stylesCssFile[] asm("_binary_styles_css_start");
 extern const uint8_t updaterJsFile[] asm("_binary_updater_js_start");
-extern const uint8_t faviconPNG_start[] asm("_binary_favicon64_png_start");
-extern const uint8_t faviconPNG_end[] asm("_binary_favicon64_png_end");
+extern const uint8_t faviconSVG_start[] asm("_binary_favicon_svg_start");
+extern const uint8_t faviconSVG_end[] asm("_binary_favicon_svg_end");
 extern const uint8_t AP_SSID[] asm("_binary_YOUR_AP_SSID_txt_start");
 extern const uint8_t AP_PASSWORD[] asm("_binary_YOUR_AP_PASSWORD_txt_start");
 
@@ -59,6 +65,12 @@ static void irReaderTask(void* args) {
     uint8_t valueID;
     uint8_t valueLength;
     uint32_t meterReadRaw = 0;
+
+    // defines how many values are saved at maximum, for the calculation of the median of 1.8.0 and 2.8.0
+    #define MEDIAN_SIZE_MAX 91
+    float importMedianArr[MEDIAN_SIZE_MAX] = {};
+    float exportMedianArr[MEDIAN_SIZE_MAX] = {};
+    uint8_t importMedianSize = 0, exportMedianSize = 0;
 
     while(1) {
         readLength = uart_read_bytes(irUART, buffer, uart_buffer_size - 1, 300 / portTICK_PERIOD_MS);
@@ -197,15 +209,18 @@ static void irReaderTask(void* args) {
                                                                     case 0x01: // import
                                                                         switch(buffer[i+6]) {
                                                                             case 0x00:
-                                                                                importOverall = meterReadRaw / 10000.0f;
+                                                                                addToMedianArr(importMedianArr, &importMedianSize, meterReadRaw / 10000.0f);
+                                                                                importOverall = median(importMedianArr, importMedianSize);
                                                                             break;
 
                                                                             case 0x01:
                                                                                 importT1 = meterReadRaw / 10000.0f;
+                                                                                if(importT1 > 1 && importT2 > 1) addToMedianArr(importMedianArr, &importMedianSize, importT1 + importT2);
                                                                             break;
 
                                                                             case 0x02:
                                                                                 importT2 = meterReadRaw / 10000.0f;
+                                                                                if(importT1 > 1 && importT2 > 1) addToMedianArr(importMedianArr, &importMedianSize, importT1 + importT2);
                                                                             break;
                                                                         }
                                                                     break;
@@ -213,15 +228,18 @@ static void irReaderTask(void* args) {
                                                                     case 0x02: // export
                                                                         switch(buffer[i+6]) {
                                                                             case 0x00:
-                                                                                exportOverall = meterReadRaw / 10000.0f;
+                                                                                addToMedianArr(exportMedianArr, &exportMedianSize, meterReadRaw / 10000.0f);
+                                                                                exportOverall = median(exportMedianArr, exportMedianSize);
                                                                             break;
 
                                                                             case 0x01:
                                                                                 exportT1 = meterReadRaw / 10000.0f;
+                                                                                if(exportT1 > 1 && exportT2 > 1) addToMedianArr(exportMedianArr, &exportMedianSize, exportT1 + exportT2);
                                                                             break;
 
                                                                             case 0x02:
                                                                                 exportT2 = meterReadRaw / 10000.0f;
+                                                                                if(exportT1 > 1 && exportT2 > 1) addToMedianArr(exportMedianArr, &exportMedianSize, exportT1 + exportT2);
                                                                             break;
                                                                         }
                                                                     break;
@@ -320,17 +338,17 @@ httpd_uri_t uri_GET_api_all = {
     .user_ctx = NULL
 };
 
-// Handler for GET "/favicon.png"
+// Handler for GET "/favicon.svg"
 esp_err_t GET_handler_favicon(httpd_req_t *req) {
-    httpd_resp_set_type(req, "image/png");
-    httpd_resp_send(req, (char*)faviconPNG_start, faviconPNG_end - faviconPNG_start);
-    ESP_LOGI("HTTP GET", "Sent GET response for \"/favicon.png\"");
+    httpd_resp_set_type(req, "image/svg+xml");
+    httpd_resp_send(req, (char*)faviconSVG_start, faviconSVG_end - faviconSVG_start);
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/favicon.svg\"");
     return ESP_OK;
 }
 
-// URI handler structure for GET "/favicon.png
+// URI handler structure for GET "/favicon.svg
 httpd_uri_t uri_GET_favicon = {
-    .uri      = "/favicon.png",
+    .uri      = "/favicon.svg",
     .method   = HTTP_GET,
     .handler  = GET_handler_favicon,
     .user_ctx = NULL
@@ -469,6 +487,43 @@ static void httpServerTask(void* args) {
 }
 
 void app_main(void) {
-    xTaskCreatePinnedToCore(irReaderTask, "irReaderTask", 10000, NULL, 10, NULL, 1);
+    xTaskCreatePinnedToCore(irReaderTask, "irReaderTask", 20000, NULL, 10, NULL, 1);
     xTaskCreatePinnedToCore(httpServerTask, "httpServerTask", 10000, NULL, 10, NULL, 0);
+}
+
+// ### Array handling helpers to calculate median for 1.8.0 and 2.8.0
+// shifts everything one index up and then inserts the value at 0
+void insertAtFirstIndex(float* arr, uint16_t len, float value) {
+    for(uint16_t i = 0; i < len - 1; i++) arr[i+1] = arr[i];
+
+    arr[0] = value;
+}
+
+// takes an unsorted array and calculates the median over it
+float median(float* arr, uint16_t len) {
+    // we need to sort the array to calculate the median, but we leave the input array untouched
+    float sortArr[len] = {};
+    memcpy(sortArr, arr, len * sizeof(float));
+    qsort(sortArr, len, sizeof(float), compareFloat);
+
+    if(len % 2) { // if len is odd, only need to evaluate one element
+        return sortArr[(len/2) + 1];
+    } else { // if len is even, need to calculate average over middle two elemets
+        return (sortArr[len/2] + sortArr[(len/2) + 1]) / 2.0f;
+    }
+}
+
+// used for the sorting in median calculation
+int compareFloat(const void* f1, const void* f2) {
+    float float1 = *((float*)f1);
+    float float2 = *((float*)f2);
+
+    if(float1 > float2) return 1;
+    if(float2 > float1) return -1;
+    return 0;
+}
+
+void addToMedianArr(float* arr, uint8_t* sizeCounter, float value) {
+    insertAtFirstIndex(arr, *sizeCounter, value);
+    if(*sizeCounter < MEDIAN_SIZE_MAX) (*sizeCounter)++;
 }

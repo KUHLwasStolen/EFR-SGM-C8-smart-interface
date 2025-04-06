@@ -5,4 +5,4 @@ idf_component_register(SRCS "main.c"
                                     "website/updater.js"
                                     "../YOUR_AP_CREDENTIALS/YOUR_AP_SSID.txt"
                                     "../YOUR_AP_CREDENTIALS/YOUR_AP_PASSWORD.txt"
-                    EMBED_FILES "website/favicon64.png")
+                    EMBED_FILES "website/favicon.svg")
