@@ -4,6 +4,8 @@ This is useful if your meter does not have the "smart" module installed, which n
 You can then use the web server to conveniently check you energy usage and adjust the output of your solar storage to not waste any energy or give it away, helping you save even more money.  
 Additionally, the API that the website uses to keep itself updated is also available for you to use in other projects.  
 
+**Planned:** In the near future I would also like to add some logging capabilities to the project via an SD card module. This would allow us to display historic data on the website (last 24h/7d/30d/...) which the meter itself collects but does not provide via the IR-interface. Also the data can be used to generate some graphs.  
+
 ## Hardware
 The project is designed around an ESP32 Mini development board and an TCRT5000 IR sensor.  
 Additionally magnets are used to mount the project on the energy-meter.  
@@ -31,4 +33,5 @@ You only need to supply the IR sensor with 3.3V and GND and you need to connect 
 Now you only need to assemble the 3D-print and mount it on your energy-meter (see below).  
 
 ## CAD/3D-models
-soon
+The current version of the mount is a pretty rough prototype at the moment, some dimensions are a tiny bit off. It can be used, but is not ideal.  
+I will provide a more polished version ASAP.  
