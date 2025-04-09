@@ -12,6 +12,8 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "nvs_flash.h"
+#include "esp_netif_sntp.h"
+#include "esp_sntp.h"
 
 #define WIFI_MAXIMUM_RETRY 5
 uint8_t wifi_retries = 0;
@@ -34,9 +36,14 @@ extern const uint8_t faviconSVG_start[] asm("_binary_favicon_svg_start");
 extern const uint8_t faviconSVG_end[] asm("_binary_favicon_svg_end");
 extern const uint8_t AP_SSID[] asm("_binary_YOUR_AP_SSID_txt_start");
 extern const uint8_t AP_PASSWORD[] asm("_binary_YOUR_AP_PASSWORD_txt_start");
+extern const uint8_t TIMEZONE_STR[] asm("_binary_YOUR_TIMEZONE_txt_start");
 
-int16_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0; // in W
+int32_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0; // in W
 float importOverall = 0.0f, importT1 = 0.0f, importT2 = 0.0f, exportOverall = 0.0f, exportT1 = 0.0f, exportT2 = 0.0f; // in kWh
+
+time_t upSince = 0;
+char upSinceStr[64] = {};
+struct tm timeinfo = {0};
 
 // To decode the SML messages
 static void irReaderTask(void* args) {
@@ -64,10 +71,11 @@ static void irReaderTask(void* args) {
     uint16_t readLength = 0;
     uint8_t valueID;
     uint8_t valueLength;
+    int32_t tempPower;
     uint32_t meterReadRaw = 0;
 
     // defines how many values are saved at maximum, for the calculation of the median of 1.8.0 and 2.8.0
-    #define MEDIAN_SIZE_MAX 91
+    #define MEDIAN_SIZE_MAX 121
     float importMedianArr[MEDIAN_SIZE_MAX] = {};
     float exportMedianArr[MEDIAN_SIZE_MAX] = {};
     uint8_t importMedianSize = 0, exportMedianSize = 0;
@@ -89,98 +97,52 @@ static void irReaderTask(void* args) {
                 // L2:              77 07 01 00 38 07 00 FF
                 // L3:              77 07 01 00 4C 07 00 FF
                 // Import overall:  77 07 01 00 01 08 00 FF
+                // Import T1:       77 07 01 00 01 08 01 FF
+                // Import T2:       77 07 01 00 01 08 02 FF
                 // Export overall:  77 07 01 00 02 08 00 FF
+                // Export T1:       77 07 01 00 02 08 01 FF
+                // Export T2:       77 07 01 00 02 08 02 FF
                 if(buffer[i] == 0x77) {
                     if(buffer[i+1] == 0x07) {
                         if(buffer[i+2] == 0x01) {
                             if(buffer[i+3] == 0x00) {
-                                if(buffer[i+4] == 0x10) { // overall power
+                                if(buffer[i+4] == 0x10 || buffer[i+4] == 0x24 || buffer[i+4] == 0x38 || buffer[i+4] == 0x4C) { // power values
                                     if(buffer[i+5] == 0x07) {
                                         if(buffer[i+6] == 0x00) {
                                             if(buffer[i+7] == 0xFF) {
                                                 valueID = buffer[i+13];
                                                 valueLength = ((uint8_t)(valueID << 4)) >> 4;
+                                                tempPower = 0;
                                                 
                                                 switch(valueLength) {
-                                                    case 1: 
-                                                        currentPower = 0;
-                                                    break;
-
                                                     case 2:
-                                                        currentPower = (int16_t)(int8_t)buffer[i+14];
+                                                        tempPower = (int32_t)(int8_t)buffer[i+14];
                                                     break;
 
                                                     case 3:
-                                                        currentPower = (int16_t)(((uint16_t)(buffer[i+14]) << 8) + (uint16_t)buffer[i+15]);
+                                                        tempPower = ((int32_t)((int8_t)buffer[i+14]) << 8) + (uint32_t)buffer[i+15];
+                                                    break;
+
+                                                    case 4:
+                                                        tempPower = ((int32_t)((int8_t)buffer[i+14]) << 16) + ((uint32_t)(buffer[i+15]) << 8) + (uint32_t)buffer[i+16];
                                                     break;
                                                 }
-                                            }
-                                        }
-                                    }
-                                } else if(buffer[i+4] == 0x24) { // L1
-                                    if(buffer[i+5] == 0x07) {
-                                        if(buffer[i+6] == 0x00) {
-                                            if(buffer[i+7] == 0xFF) {
-                                                valueID = buffer[i+13];
-                                                valueLength = ((uint8_t)(valueID << 4)) >> 4;
-                                                
-                                                switch(valueLength) {
-                                                    case 1: 
-                                                        currentPowerL1 = 0;
+
+                                                switch(buffer[i+4]) {
+                                                    case 0x10:
+                                                        currentPower = tempPower;
                                                     break;
 
-                                                    case 2:
-                                                        currentPowerL1 = (int16_t)(int8_t)buffer[i+14];
+                                                    case 0x24:
+                                                        currentPowerL1 = tempPower;
                                                     break;
 
-                                                    case 3:
-                                                        currentPowerL1 = (int16_t)(((uint16_t)(buffer[i+14]) << 8) + (uint16_t)buffer[i+15]);
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else if(buffer[i+4] == 0x38) { // L2
-                                    if(buffer[i+5] == 0x07) {
-                                        if(buffer[i+6] == 0x00) {
-                                            if(buffer[i+7] == 0xFF) {
-                                                valueID = buffer[i+13];
-                                                valueLength = ((uint8_t)(valueID << 4)) >> 4;
-                                                
-                                                switch(valueLength) {
-                                                    case 1: 
-                                                        currentPowerL2 = 0;
+                                                    case 0x38:
+                                                        currentPowerL2 = tempPower;
                                                     break;
 
-                                                    case 2:
-                                                        currentPowerL2 = (int16_t)(int8_t)buffer[i+14];
-                                                    break;
-
-                                                    case 3:
-                                                        currentPowerL2 = (int16_t)(((uint16_t)(buffer[i+14]) << 8) + (uint16_t)buffer[i+15]);
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else if(buffer[i+4] == 0x4C) { // L3
-                                    if(buffer[i+5] == 0x07) {
-                                        if(buffer[i+6] == 0x00) {
-                                            if(buffer[i+7] == 0xFF) {
-                                                valueID = buffer[i+13];
-                                                valueLength = ((uint8_t)(valueID << 4)) >> 4;
-                                                
-                                                switch(valueLength) {
-                                                    case 1: 
-                                                        currentPowerL3 = 0;
-                                                    break;
-
-                                                    case 2:
-                                                        currentPowerL3 = (int16_t)(int8_t)buffer[i+14];
-                                                    break;
-
-                                                    case 3:
-                                                        currentPowerL3 = (int16_t)(((uint16_t)(buffer[i+14]) << 8) + (uint16_t)buffer[i+15]);
+                                                    case 0x4C:
+                                                        currentPowerL3 = tempPower;
                                                     break;
                                                 }
                                             }
@@ -202,7 +164,7 @@ static void irReaderTask(void* args) {
 
                                                                 // now fill meterReadRaw according to length
                                                                 for(uint8_t l = 0; l < k; l++) {
-                                                                    meterReadRaw += buffer[j+3+l] << ((k-1-l)*8);
+                                                                    meterReadRaw += (uint32_t)(buffer[j+3+l]) << ((k-1-l)*8);
                                                                 }
 
                                                                 switch(buffer[i+4]) {
@@ -263,13 +225,14 @@ static void irReaderTask(void* args) {
             }
             //printf("\n\n");
 
-            ESP_LOGI("Power", "Overall: %d  L1: %d  L2: %d  L3: %d", currentPower, currentPowerL1, currentPowerL2, currentPowerL3);
+            ESP_LOGI("Power", "Overall: %ld  L1: %ld  L2: %ld  L3: %ld", currentPower, currentPowerL1, currentPowerL2, currentPowerL3);
             ESP_LOGI("Meter readings", "Import: %.3f  T1: %.3f  T2: %.3f  Export: %.3f  T1: %.3f  T2: %.3f", importOverall, importT1, importT2, exportOverall, exportT1, exportT2);
 
             ESP_ERROR_CHECK(uart_flush_input(irUART));
         }
     }
 }
+
 
 // From here on everything related to the web server
 // Handler for GET "/"
@@ -323,7 +286,8 @@ httpd_uri_t uri_GET_updater = {
 // Handler for GET "api/all"
 esp_err_t GET_handler_api_all(httpd_req_t *req) {
     char resp[1024];
-    sprintf(resp, "{\"power\":{\"total\":%hi, \"l1\":%hi, \"l2\":%hi, \"l3\":%hi}, \"meter\":{\"import\":{\"total\":%.2f, \"t1\":%.2f, \"t2\":%.2f}, \"export\":{\"total\":%.2f, \"t1\":%.2f, \"t2\":%.2f}}}", currentPower, currentPowerL1, currentPowerL2, currentPowerL3, importOverall, importT1, importT2, exportOverall, exportT1, exportT2);
+    sprintf(resp, "{\"power\":{\"total\":%ld, \"l1\":%ld, \"l2\":%ld, \"l3\":%ld}, \"meter\":{\"import\":{\"total\":%.2f, \"t1\":%.2f, \"t2\":%.2f}, \"export\":{\"total\":%.2f, \"t1\":%.2f, \"t2\":%.2f}}, \"up\":\"%s\"}"
+        , currentPower, currentPowerL1, currentPowerL2, currentPowerL3, importOverall, importT1, importT2, exportOverall, exportT1, exportT2, upSinceStr);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
     ESP_LOGI("HTTP GET", "Sent GET response for \"/api/all\"");
@@ -354,6 +318,22 @@ httpd_uri_t uri_GET_favicon = {
     .user_ctx = NULL
 };
 
+// Handler for GET "/settings"
+esp_err_t GET_handler_settings(httpd_req_t *req) {
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, "Under construction", HTTPD_RESP_USE_STRLEN);
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/settings\"");
+    return ESP_OK;
+}
+
+// URI handler structure for GET "/settings"
+httpd_uri_t uri_GET_settings = {
+    .uri      = "/settings",
+    .method   = HTTP_GET,
+    .handler  = GET_handler_settings,
+    .user_ctx = NULL
+};
+
 // Final server set up and start
 httpd_handle_t start_webserver() {
     // Generate default config
@@ -369,6 +349,7 @@ httpd_handle_t start_webserver() {
         httpd_register_uri_handler(server, &uri_GET_favicon);
         httpd_register_uri_handler(server, &uri_GET_styles);
         httpd_register_uri_handler(server, &uri_GET_updater);
+        httpd_register_uri_handler(server, &uri_GET_settings);
     }
 
     // handle == NULL if start failed
@@ -388,7 +369,7 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
         
-        ESP_LOGE("WIFI", "Connection to the AP fail");
+        ESP_LOGE("WIFI", "Connection to the AP failed");
 
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
@@ -435,11 +416,9 @@ void wifi_init_sta(void) {
     strcpy((char *)wifi_config.sta.ssid, (char *)AP_SSID);
 	strcpy((char *)wifi_config.sta.password, (char *)AP_PASSWORD);
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK(esp_wifi_start() );
-
-    ESP_LOGI("WIFI", "wifi_init_sta finished.");
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() */
@@ -469,27 +448,57 @@ static void httpServerTask(void* args) {
     }
     ESP_ERROR_CHECK(ret);
 
+    ESP_LOGI("HTTP server", "Preparing SNTP time sync via DHCP");
+    esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+    sntp_config.start = false;
+    sntp_config.server_from_dhcp = true;
+    sntp_config.renew_servers_after_new_IP = true;
+    sntp_config.ip_event_to_renew = IP_EVENT_STA_GOT_IP;
+    sntp_config.index_of_first_server = 1;
+    esp_netif_sntp_init(&sntp_config);
+
+    // Connect to WiFi
     wifi_init_sta();
+
+    ESP_LOGI("HTTP server", "Staring SNTP time sync...");
+    esp_netif_sntp_start();
+
+    int retry = 0;
+    const int retry_count = 15;
+    while (esp_netif_sntp_sync_wait(2000 / portTICK_PERIOD_MS) == ESP_ERR_TIMEOUT && ++retry < retry_count) {
+        ESP_LOGI("HTTP server", "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+    }
+
+    esp_netif_sntp_deinit();
 
     serverHandle = start_webserver();
 
     if(serverHandle == NULL) {
         ESP_LOGE("HTTP server", "Failed to start server! Restarting...");
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
         esp_restart();
     }
 
     ESP_LOGI("HTTP server", "Successfully started server!");
+    time(&upSince);
+    setenv("TZ", (char*)TIMEZONE_STR, 1);
+    tzset();
+    localtime_r(&upSince, &timeinfo);
+    strftime(upSinceStr, sizeof(upSinceStr), "%c", &timeinfo);
+
+    ESP_LOGI("HTTP server", "Up since: %s", upSinceStr);
 
     while(1) {
         vTaskDelay(1);
     }
 }
 
+
 void app_main(void) {
     xTaskCreatePinnedToCore(irReaderTask, "irReaderTask", 20000, NULL, 10, NULL, 1);
     xTaskCreatePinnedToCore(httpServerTask, "httpServerTask", 10000, NULL, 10, NULL, 0);
 }
+
 
 // ### Array handling helpers to calculate median for 1.8.0 and 2.8.0
 // shifts everything one index up and then inserts the value at 0

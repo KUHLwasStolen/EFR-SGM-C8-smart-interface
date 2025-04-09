@@ -1,43 +1,69 @@
-* {
+:root{
+  --left-right-pad: .3rem;
+}
+*{
   line-height: 1.25rem;
   line-height: calc(.25rem + 1.25vw);
 }
-.value {
+.value{
   margin-left: 3.5rem;
   margin-left: calc(3rem + 2vw);
 }
-h1 {
+h1{
   line-height: 2rem;
   font-size: 30px;
   font-size: calc(.5rem + 3vw);
 }
-h2 {
+h2{
   margin-left: 1rem;
   margin-left: calc(.5rem + 1vw);
   font-size: 24px;
   font-size: calc(.5rem + 2vw);
 }
-p {
+p{
   font-size: 20px;
   font-size: calc(.5rem + 1.5vw);
 }
+footer{
+  margin-top: 3rem;
+  padding: 1rem .5rem 1rem .5rem;
+  border: solid;
+  border-color: lightgray;
+  font-size: 90%;
+}
+a.button{
+  padding-left: var(--left-right-pad);
+  padding-right: var(--left-right-pad);
+  color: black;
+  background-color: white;
+  text-decoration: none;
+  border: .3rem outset;
+  border-radius: .2rem;
+  transition: border-radius .1s;
+}
+a.button:hover{
+  border-radius: .5rem;
+}
+.uptime{
+  float: right;
+}
 
-@media screen and (max-width: 500px) {
-.value {
+@media screen and (max-width: 500px){
+.value{
   margin-left: 3.5rem;
   margin-left: calc(2rem + 5vw);
 }
-h1 {
+h1{
   font-size: 30px;
   font-size: calc(.5rem + 6vw);
 }
-h2 {
+h2{
   margin-left: 1rem;
   margin-left: calc(.5rem + 2vw);
   font-size: 22px;
   font-size: calc(.5rem + 4vw);
 }
-p {
+p{
   font-size: 20px;
   font-size: calc(.5rem + 3.5vw);
 }

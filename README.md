@@ -24,8 +24,8 @@ But I like that the sensor board comes with a potentiometer to easily adjust the
 ### Software
 Flashing the ESP with the program should be pretty straightforward:  
 1. Clone the repository to your computer
-2. Edit the files in [YOUR_AP_CREDENTIALS](./YOUR_AP_CREDENTIALS/) to reflect your WiFi setup
-3. Build and flash the project with ESP-IDF
+2. Edit the files in [YOUR_CONFIGURATION](./YOUR_CONFIGURATION) to reflect your WiFi setup and your time zone. To select the correct time zone you can refer to the column on the right of [this](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv) list. Make sure that these files **only** contain the information that their name indicates in **one** line with **no** additional spaces or other characters before and after your entry.
+3. Build and flash the project with ESP-IDF.
 
 ### Hardware
 The hardware setup is also very simple.  

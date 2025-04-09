@@ -11,6 +11,8 @@ function reqListener() {
 	document.getElementById("meter-export").innerHTML = jsonObj.meter.export.total;
   document.getElementById("meter-export-t1").innerHTML = jsonObj.meter.export.t1;
   document.getElementById("meter-export-t2").innerHTML = jsonObj.meter.export.t2;
+  document.getElementById("uptime-value").innerHTML = jsonObj.up;
+  document.getElementById("uptime-value").style.color = "green";
 
 	var currentPower = parseInt(jsonObj.power.total);
 	if (currentPower < 0) {
@@ -25,10 +27,16 @@ function reqListener() {
 	}
 }
 
+function errorListener() {
+  document.getElementById("uptime-value").innerHTML = "Not reachable";
+  document.getElementById("uptime-value").style.color = "red";
+}
+
 function updateAll() {
 	const req = new XMLHttpRequest();
 	req.addEventListener("load", reqListener);
-	req.open("GET", "/api/all");
+  req.addEventListener("error", errorListener)
+	req.open("GET", "api/all");
 	req.send();
 }
 
