@@ -14,6 +14,7 @@
 #include "nvs_flash.h"
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
+#include "lwip/ip_addr.h"
 
 #define WIFI_MAXIMUM_RETRY 5
 uint8_t wifi_retries = 0;
@@ -382,9 +383,6 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
 void wifi_init_sta(void) {
     s_wifi_event_group = xEventGroupCreate();
 
-    ESP_ERROR_CHECK(esp_netif_init());
-
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -433,7 +431,7 @@ void wifi_init_sta(void) {
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI("WIFI", "Successfully connected to AP with SSID: %s", (char*)AP_SSID);
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI("WIFI", "Failed to connect to AP with SSID: %s", (char*)AP_SSID);
+        ESP_LOGE("WIFI", "Failed to connect to AP with SSID: %s", (char*)AP_SSID);
     } else {
         ESP_LOGE("WIFI", "UNEXPECTED EVENT");
     }
@@ -448,14 +446,17 @@ static void httpServerTask(void* args) {
     }
     ESP_ERROR_CHECK(ret);
 
+    esp_netif_init();
+    esp_event_loop_create_default();
+
     ESP_LOGI("HTTP server", "Preparing SNTP time sync via DHCP");
-    esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+    esp_sntp_config_t sntp_config = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(1, ESP_SNTP_SERVER_LIST("pool.ntp.org"));
     sntp_config.start = false;
     sntp_config.server_from_dhcp = true;
     sntp_config.renew_servers_after_new_IP = true;
     sntp_config.ip_event_to_renew = IP_EVENT_STA_GOT_IP;
     sntp_config.index_of_first_server = 1;
-    esp_netif_sntp_init(&sntp_config);
+    ESP_ERROR_CHECK(esp_netif_sntp_init(&sntp_config));
 
     // Connect to WiFi
     wifi_init_sta();
@@ -463,9 +464,9 @@ static void httpServerTask(void* args) {
     ESP_LOGI("HTTP server", "Staring SNTP time sync...");
     esp_netif_sntp_start();
 
-    int retry = 0;
-    const int retry_count = 15;
-    while (esp_netif_sntp_sync_wait(2000 / portTICK_PERIOD_MS) == ESP_ERR_TIMEOUT && ++retry < retry_count) {
+    uint8_t retry = 0;
+    const uint8_t retry_count = 15;
+    while (esp_netif_sntp_sync_wait(3000 / portTICK_PERIOD_MS) != ESP_OK && ++retry <= retry_count) {
         ESP_LOGI("HTTP server", "Waiting for system time to be set... (%d/%d)", retry, retry_count);
     }
 

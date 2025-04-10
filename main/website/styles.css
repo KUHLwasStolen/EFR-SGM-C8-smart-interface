@@ -2,12 +2,13 @@
   --left-right-pad: .3rem;
 }
 *{
-  line-height: 1.25rem;
-  line-height: calc(.25rem + 1.25vw);
+  line-height: 1rem;
+  line-height: calc(.25rem + 1vw);
+  font-family: monospace;
 }
 .value{
   margin-left: 3.5rem;
-  margin-left: calc(3rem + 2vw);
+  margin-left: calc(3rem + 2.5vw);
 }
 h1{
   line-height: 2rem;
@@ -29,7 +30,10 @@ footer{
   padding: 1rem .5rem 1rem .5rem;
   border: solid;
   border-color: lightgray;
+  background-color: white;
+  border-radius: .5rem;
   font-size: 90%;
+  font-size: calc(90% + .2vw);
 }
 a.button{
   padding-left: var(--left-right-pad);
@@ -39,10 +43,12 @@ a.button{
   text-decoration: none;
   border: .3rem outset;
   border-radius: .2rem;
-  transition: border-radius .1s;
+  border-color: rgb(244, 244, 244);
+  transition: all .1s;
 }
 a.button:hover{
   border-radius: .5rem;
+  background-color: rgb(244, 244, 244);
 }
 .uptime{
   float: right;

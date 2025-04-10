@@ -35,7 +35,7 @@ function errorListener() {
 function updateAll() {
 	const req = new XMLHttpRequest();
 	req.addEventListener("load", reqListener);
-  req.addEventListener("error", errorListener)
+  req.addEventListener("error", errorListener);
 	req.open("GET", "api/all");
 	req.send();
 }
