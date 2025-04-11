@@ -1,0 +1,20 @@
+menu "YOUR CONFIGURATION"
+
+    config YOUR_AP_SSID
+        string "SSID/name of your WiFi access point (max 32 chars)"
+        default "MyExampleAccessPoint1234"
+        help
+            This is the name that the ESP will search for.
+            Generally has to be an access point with 2.4 GHz.
+
+    config YOUR_AP_PASSWORD
+        string "Password of your WiFi access point (max 64 chars)"
+        default "MySuperSecureExamplePassword1234"
+
+    config YOUR_TIME_ZONE
+        string "POSIX tz compatible timezone (reference: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv)"
+        default "UTC0"
+        help
+            Used for automatic time synchronization of the ESP (Up since, logging, ...)
+
+endmenu

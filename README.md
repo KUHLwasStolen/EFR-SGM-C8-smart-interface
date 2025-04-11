@@ -24,7 +24,7 @@ But I like that the sensor board comes with a potentiometer to easily adjust the
 ### Software
 Flashing the ESP with the program should be pretty straightforward:  
 1. Clone the repository to your computer
-2. Edit the files in [YOUR_CONFIGURATION](./YOUR_CONFIGURATION) to reflect your WiFi setup and your time zone. To select the correct time zone you can refer to the column on the right of [this](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv) list. Make sure that these files **only** contain the information that their name indicates in **one** line with **no** additional spaces or other characters before and after your entry.
+2. Now you need to configure the project. In an ESP-IDF terminal type `idf.py menuconfig`, do your basic setup and go to the menu `YOUR CONFIGURATION` and enter your information there (WiFi config, timezone). To select the correct time zone you can refer to the column on the right of [this](https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv) list. Make sure that your entries **only** contain the information that their name indicates with **no** additional spaces or other characters before and after your entry, so the ESP can find your WiFi and understand your timezone.
 3. Build and flash the project with ESP-IDF.
 
 ### Hardware

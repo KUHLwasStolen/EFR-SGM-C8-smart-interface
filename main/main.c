@@ -14,7 +14,6 @@
 #include "nvs_flash.h"
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
-#include "lwip/ip_addr.h"
 
 #define WIFI_MAXIMUM_RETRY 5
 uint8_t wifi_retries = 0;
@@ -35,9 +34,6 @@ extern const uint8_t stylesCssFile[] asm("_binary_styles_css_start");
 extern const uint8_t updaterJsFile[] asm("_binary_updater_js_start");
 extern const uint8_t faviconSVG_start[] asm("_binary_favicon_svg_start");
 extern const uint8_t faviconSVG_end[] asm("_binary_favicon_svg_end");
-extern const uint8_t AP_SSID[] asm("_binary_YOUR_AP_SSID_txt_start");
-extern const uint8_t AP_PASSWORD[] asm("_binary_YOUR_AP_PASSWORD_txt_start");
-extern const uint8_t TIMEZONE_STR[] asm("_binary_YOUR_TIMEZONE_txt_start");
 
 int32_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0; // in W
 float importOverall = 0.0f, importT1 = 0.0f, importT2 = 0.0f, exportOverall = 0.0f, exportT1 = 0.0f, exportT2 = 0.0f; // in kWh
@@ -411,8 +407,8 @@ void wifi_init_sta(void) {
         },
     };
     // overwrite SSID and PASSWORD with actual values
-    strcpy((char *)wifi_config.sta.ssid, (char *)AP_SSID);
-	strcpy((char *)wifi_config.sta.password, (char *)AP_PASSWORD);
+    strcpy((char *)wifi_config.sta.ssid, CONFIG_YOUR_AP_SSID);
+	strcpy((char *)wifi_config.sta.password, CONFIG_YOUR_AP_PASSWORD);
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
@@ -429,9 +425,9 @@ void wifi_init_sta(void) {
     /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI("WIFI", "Successfully connected to AP with SSID: %s", (char*)AP_SSID);
+        ESP_LOGI("WIFI", "Successfully connected to AP with SSID: %s", CONFIG_YOUR_AP_SSID);
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGE("WIFI", "Failed to connect to AP with SSID: %s", (char*)AP_SSID);
+        ESP_LOGE("WIFI", "Failed to connect to AP with SSID: %s", CONFIG_YOUR_AP_SSID);
     } else {
         ESP_LOGE("WIFI", "UNEXPECTED EVENT");
     }
@@ -482,7 +478,7 @@ static void httpServerTask(void* args) {
 
     ESP_LOGI("HTTP server", "Successfully started server!");
     time(&upSince);
-    setenv("TZ", (char*)TIMEZONE_STR, 1);
+    setenv("TZ", CONFIG_YOUR_TIME_ZONE, 1);
     tzset();
     localtime_r(&upSince, &timeinfo);
     strftime(upSinceStr, sizeof(upSinceStr), "%c", &timeinfo);
@@ -496,6 +492,10 @@ static void httpServerTask(void* args) {
 
 
 void app_main(void) {
+    if(strcmp(CONFIG_YOUR_AP_SSID, "MyExampleAccessPoint1234") == 0) ESP_LOGW("CONFIG", "Your AP SSID matches the default, make sure your config is correct (see README.md).");
+    if(strcmp(CONFIG_YOUR_AP_PASSWORD, "MySuperSecureExamplePassword1234") == 0) ESP_LOGW("CONFIG", "Your AP password matches the default, make sure your config is correct (see README.md).");
+    if(strcmp(CONFIG_YOUR_TIME_ZONE, "UTC0") == 0) ESP_LOGW("CONFIG", "Your timezone matches the default, if you want to use UTC0 there is nothing to worry about, if need a different timezone check your config (see README.md).");
+
     xTaskCreatePinnedToCore(irReaderTask, "irReaderTask", 20000, NULL, 10, NULL, 1);
     xTaskCreatePinnedToCore(httpServerTask, "httpServerTask", 10000, NULL, 10, NULL, 0);
 }
