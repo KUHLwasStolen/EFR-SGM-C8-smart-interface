@@ -3,6 +3,7 @@
 
 #include "driver/gpio.h"
 #include "driver/uart.h"
+#include "soc/uart_channel.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -44,7 +45,7 @@ struct tm timeinfo = {0};
 
 // To decode the SML messages
 static void irReaderTask(void* args) {
-    const uart_port_t irUART = UART_NUM_1;
+    const uart_port_t irUART = UART_GPIO16_DIRECT_CHANNEL;
     uart_config_t irConfig = {
         .baud_rate = 9600,
         .data_bits = UART_DATA_8_BITS,
@@ -55,7 +56,7 @@ static void irReaderTask(void* args) {
     };
 
     ESP_ERROR_CHECK(uart_param_config(irUART, &irConfig));
-    ESP_ERROR_CHECK(uart_set_pin(irUART, 21, 18, (UART_PIN_NO_CHANGE), (UART_PIN_NO_CHANGE)));
+    ESP_ERROR_CHECK(uart_set_pin(irUART, UART_PIN_NO_CHANGE, 16, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
     const int uart_buffer_size = 1200 * 2;
     QueueHandle_t uart_queue;
@@ -72,10 +73,14 @@ static void irReaderTask(void* args) {
     uint32_t meterReadRaw = 0;
 
     // defines how many values are saved at maximum, for the calculation of the median of 1.8.0 and 2.8.0
-    #define MEDIAN_SIZE_MAX 121
+    #define MEDIAN_SIZE_MAX 31
     float importMedianArr[MEDIAN_SIZE_MAX] = {};
+    float importT1MedianArr[MEDIAN_SIZE_MAX] = {};
+    float importT2MedianArr[MEDIAN_SIZE_MAX] = {};
     float exportMedianArr[MEDIAN_SIZE_MAX] = {};
-    uint8_t importMedianSize = 0, exportMedianSize = 0;
+    float exportT1MedianArr[MEDIAN_SIZE_MAX] = {};
+    float exportT2MedianArr[MEDIAN_SIZE_MAX] = {};
+    uint8_t importMedianSize = 0, importT1MedianSize = 0, importT2MedianSize = 0, exportMedianSize = 0, exportT1MedianSize = 0, exportT2MedianSize = 0;
 
     while(1) {
         readLength = uart_read_bytes(irUART, buffer, uart_buffer_size - 1, 300 / portTICK_PERIOD_MS);
@@ -173,12 +178,14 @@ static void irReaderTask(void* args) {
                                                                             break;
 
                                                                             case 0x01:
-                                                                                importT1 = meterReadRaw / 10000.0f;
+                                                                                addToMedianArr(importT1MedianArr, &importT1MedianSize, meterReadRaw / 10000.0f);
+                                                                                importT1 = median(importT1MedianArr, importT1MedianSize);
                                                                                 if(importT1 > 1 && importT2 > 1) addToMedianArr(importMedianArr, &importMedianSize, importT1 + importT2);
                                                                             break;
 
                                                                             case 0x02:
-                                                                                importT2 = meterReadRaw / 10000.0f;
+                                                                                addToMedianArr(importT2MedianArr, &importT2MedianSize, meterReadRaw / 10000.0f);
+                                                                                importT2 = median(importT2MedianArr, importT2MedianSize);
                                                                                 if(importT1 > 1 && importT2 > 1) addToMedianArr(importMedianArr, &importMedianSize, importT1 + importT2);
                                                                             break;
                                                                         }
@@ -192,12 +199,14 @@ static void irReaderTask(void* args) {
                                                                             break;
 
                                                                             case 0x01:
-                                                                                exportT1 = meterReadRaw / 10000.0f;
+                                                                                addToMedianArr(exportT1MedianArr, &exportT1MedianSize, meterReadRaw / 10000.0f);
+                                                                                exportT1 = median(exportT1MedianArr, exportT1MedianSize);
                                                                                 if(exportT1 > 1 && exportT2 > 1) addToMedianArr(exportMedianArr, &exportMedianSize, exportT1 + exportT2);
                                                                             break;
 
                                                                             case 0x02:
-                                                                                exportT2 = meterReadRaw / 10000.0f;
+                                                                                addToMedianArr(exportT2MedianArr, &exportT2MedianSize, meterReadRaw / 10000.0f);
+                                                                                exportT2 = median(exportT2MedianArr, exportT2MedianSize);
                                                                                 if(exportT1 > 1 && exportT2 > 1) addToMedianArr(exportMedianArr, &exportMedianSize, exportT1 + exportT2);
                                                                             break;
                                                                         }
@@ -504,7 +513,7 @@ void app_main(void) {
 // ### Array handling helpers to calculate median for 1.8.0 and 2.8.0
 // shifts everything one index up and then inserts the value at 0
 void insertAtFirstIndex(float* arr, uint16_t len, float value) {
-    for(uint16_t i = 0; i < len - 1; i++) arr[i+1] = arr[i];
+    for(int32_t i = len - 2; i >= 0; i--) arr[i+1] = arr[i];
 
     arr[0] = value;
 }
@@ -517,9 +526,9 @@ float median(float* arr, uint16_t len) {
     qsort(sortArr, len, sizeof(float), compareFloat);
 
     if(len % 2) { // if len is odd, only need to evaluate one element
-        return sortArr[(len/2) + 1];
+        return sortArr[(len/2)];
     } else { // if len is even, need to calculate average over middle two elemets
-        return (sortArr[len/2] + sortArr[(len/2) + 1]) / 2.0f;
+        return (sortArr[(len/2) - 1] + sortArr[(len/2)]) / 2.0f;
     }
 }
 

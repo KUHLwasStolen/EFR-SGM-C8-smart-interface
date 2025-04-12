@@ -29,7 +29,7 @@ Flashing the ESP with the program should be pretty straightforward:
 
 ### Hardware
 The hardware setup is also very simple.  
-You only need to supply the IR sensor with 3.3V and GND and you need to connect pin 18 of the ESP with the digital out pin of the sensor.  
+You only need to supply the IR sensor with 3.3V and GND and you need to connect pin 16 of the ESP with the digital out pin of the sensor.  
 Now you only need to assemble the 3D-print and mount it on your energy-meter (see below).  
 
 ## CAD/3D-models
