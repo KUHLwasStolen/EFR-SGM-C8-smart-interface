@@ -34,6 +34,7 @@ function errorListener() {
 
 function updateAll() {
 	const req = new XMLHttpRequest();
+  req.timeout = 4000;
 	req.addEventListener("load", reqListener);
   req.addEventListener("error", errorListener);
 	req.open("GET", "api/all");

@@ -33,6 +33,8 @@ void addToMedianArr(float* arr, uint8_t* sizeCounter, float value);
 extern const uint8_t indexHtmlFile[] asm("_binary_index_html_start");
 extern const uint8_t stylesCssFile[] asm("_binary_styles_css_start");
 extern const uint8_t updaterJsFile[] asm("_binary_updater_js_start");
+extern const uint8_t settingsHtmlFile[] asm("_binary_settings_html_start");
+extern const uint8_t settingsJsFile[] asm("_binary_settings_js_start");
 extern const uint8_t faviconSVG_start[] asm("_binary_favicon_svg_start");
 extern const uint8_t faviconSVG_end[] asm("_binary_favicon_svg_end");
 
@@ -73,7 +75,7 @@ static void irReaderTask(void* args) {
     uint32_t meterReadRaw = 0;
 
     // defines how many values are saved at maximum, for the calculation of the median of 1.8.0 and 2.8.0
-    #define MEDIAN_SIZE_MAX 31
+    #define MEDIAN_SIZE_MAX 15
     float importMedianArr[MEDIAN_SIZE_MAX] = {};
     float importT1MedianArr[MEDIAN_SIZE_MAX] = {};
     float importT2MedianArr[MEDIAN_SIZE_MAX] = {};
@@ -327,7 +329,7 @@ httpd_uri_t uri_GET_favicon = {
 // Handler for GET "/settings"
 esp_err_t GET_handler_settings(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, "Under construction", HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send(req, (char*)settingsHtmlFile, HTTPD_RESP_USE_STRLEN);
     ESP_LOGI("HTTP GET", "Sent GET response for \"/settings\"");
     return ESP_OK;
 }
@@ -337,6 +339,39 @@ httpd_uri_t uri_GET_settings = {
     .uri      = "/settings",
     .method   = HTTP_GET,
     .handler  = GET_handler_settings,
+    .user_ctx = NULL
+};
+
+// Handler for PUT "/settings"
+esp_err_t PUT_handler_settings(httpd_req_t *req) {
+    // TODO: implement actual settings handling
+    httpd_resp_set_status(req, HTTPD_204);
+    httpd_resp_send(req, "", 0);
+    ESP_LOGI("HTTP PUT", "Sent PUT response for \"/settings\"");
+    return ESP_OK;
+}
+
+// URI handler structure for PUT "/settings"
+httpd_uri_t uri_PUT_settings = {
+    .uri      = "/settings",
+    .method   = HTTP_PUT,
+    .handler  = PUT_handler_settings,
+    .user_ctx = NULL
+};
+
+// Handler for GET "/settings/settings.js"
+esp_err_t GET_handler_settingsJs(httpd_req_t *req) {
+    httpd_resp_set_type(req, "text/javascript");
+    httpd_resp_send(req, (char*)settingsJsFile, HTTPD_RESP_USE_STRLEN);
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/settings/settings.js\"");
+    return ESP_OK;
+}
+
+// URI handler structure for GET "/settings/settings.js"
+httpd_uri_t uri_GET_settingsJs = {
+    .uri      = "/settings/settings.js",
+    .method   = HTTP_GET,
+    .handler  = GET_handler_settingsJs,
     .user_ctx = NULL
 };
 
@@ -356,6 +391,9 @@ httpd_handle_t start_webserver() {
         httpd_register_uri_handler(server, &uri_GET_styles);
         httpd_register_uri_handler(server, &uri_GET_updater);
         httpd_register_uri_handler(server, &uri_GET_settings);
+        httpd_register_uri_handler(server, &uri_GET_settingsJs);
+        httpd_register_uri_handler(server, &uri_PUT_settings);
+
     }
 
     // handle == NULL if start failed

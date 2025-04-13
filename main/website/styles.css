@@ -1,6 +1,3 @@
-:root{
-  --left-right-pad: .3rem;
-}
 *{
   line-height: 1rem;
   line-height: calc(.25rem + 1vw);
@@ -12,14 +9,14 @@
 }
 h1{
   line-height: 2rem;
+  text-decoration: underline;
   font-size: 30px;
   font-size: calc(.5rem + 3vw);
 }
 h2{
-  margin-left: 1rem;
-  margin-left: calc(.5rem + 1vw);
   font-size: 24px;
   font-size: calc(.5rem + 2vw);
+  margin-left: .2rem;
 }
 p{
   font-size: 20px;
@@ -27,7 +24,7 @@ p{
 }
 footer{
   margin-top: 3rem;
-  padding: 1rem .5rem 1rem .5rem;
+  padding: 1rem 0 1rem 0;
   border: solid;
   border-color: lightgray;
   background-color: white;
@@ -35,23 +32,60 @@ footer{
   font-size: 90%;
   font-size: calc(90% + .2vw);
 }
-a.button{
-  padding-left: var(--left-right-pad);
-  padding-right: var(--left-right-pad);
+.button{
+  padding: .3rem .3rem;
   color: black;
   background-color: white;
   text-decoration: none;
-  border: .3rem outset;
+  border: .3rem outset rgb(244, 244, 244);
   border-radius: .2rem;
-  border-color: rgb(244, 244, 244);
   transition: all .1s;
 }
-a.button:hover{
+.button:hover{
   border-radius: .5rem;
   background-color: rgb(244, 244, 244);
 }
 .uptime{
   float: right;
+}
+.info{
+  padding: 0 .5rem 1rem .5rem;
+  border-bottom: solid lightgray;
+}
+.about{
+  padding-left: .5rem;
+  margin-top: .5rem;
+}
+.about *{
+  font-size: 90%;
+  margin-bottom: 0;
+}
+.about p{
+  padding-left: 1rem;
+  padding-right: .5rem;
+  line-height: 100%;
+}
+summary{
+  font-weight: bold;
+}
+details h2{
+  display:inline-block;
+  margin-top: .75rem;
+  margin-bottom: .75rem;
+}
+details:open p{
+  margin-top: 1rem;
+}
+details.value-menu{
+  font-size: 2rem;
+  margin-left: 1rem;
+  margin-left: calc(.5rem + 1vw);
+}
+fieldset{
+  margin-bottom: 1rem;
+}
+.put-status{
+  font-size: 100%;
 }
 
 @media screen and (max-width: 500px){

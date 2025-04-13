@@ -10,22 +10,36 @@
 </head>
 
 <body>
- <h1><u>EFR-SGM-C8</u></h1>
- <h2>Power: <span id="power-text" style="color: black"><span id="power-value">0</span> W</span> (<span id="power-status">N/A</span>)</h2>
- <p class="value">L1: <span id="power-l1-value">0</span> W</p>
- <p class="value">L2: <span id="power-l2-value">0</span> W</p>
- <p class="value">L3: <span id="power-l3-value">0</span> W</p>
- <h2>Meter readings</h2>
+ <h1>EFR-SGM-C8</h1>
+ <details class="value-menu">
+  <summary><h2>Power: <span id="power-text" style="color: black"><span id="power-value">0</span> W</span> (<span id="power-status">N/A</span>)</h2></summary>
+  <p class="value">L1: <span id="power-l1-value">0</span> W</p>
+  <p class="value">L2: <span id="power-l2-value">0</span> W</p>
+  <p class="value">L3: <span id="power-l3-value">0</span> W</p>
+ </details>
+ <details open class="value-menu">
+ <summary><h2>Meter readings</h2></summary>
  <p class="value">Import total: <span id="meter-import">0</span> kWh</p>
  <p class="value"><span class="value">T1: <span id="meter-import-t1">0</span> kWh</span></p>
  <p class="value"><span class="value">T2: <span id="meter-import-t2">0</span> kWh</span></p>
  <p class="value">Export total: <span id="meter-export">0</span> kWh</p>
  <p class="value"><span class="value">T1: <span id="meter-export-t1">0</span> kWh</span></p>
  <p class="value"><span class="value">T2: <span id="meter-export-t2">0</span> kWh</span></p>
+ </details>
 </body>
 <footer>
+ <div class="info">
  <a class="button" href="settings">Settings</a>
  <span class="uptime">Up since: <span id="uptime-value">N/A</span></span>
+ </div>
+ <details class="about">
+  <summary>About/License</summary>
+  <p>This is an open source project to decode the SML interface of the EFR-SGM-C8 energy meter. Created by <a href="https://github.com/KUHLwasStolen">@KUHLwasStolen</a> and distributed under the GNU General Public License v3.0.</p>
+  <p>Copyright (C) 2025 <a href="https://github.com/KUHLwasStolen">KUHLwasStolen</a></p>
+  <p>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.</p>
+  <p>This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.</p>
+  <p>You should have received a copy of the GNU General Public License along with this program.  If not, see <a href="https://www.gnu.org/licenses/">https://www.gnu.org/licenses/</a>.</p>
+ </details>
 </footer>
 
 </html>

@@ -35,3 +35,6 @@ Now you only need to assemble the 3D-print and mount it on your energy-meter (se
 ## CAD/3D-models
 The current version of the mount is a pretty rough prototype at the moment, some dimensions are a tiny bit off. It can be used, but is not ideal.  
 I will provide a more polished version ASAP.  
+
+## Note on the website files
+Excuse the weird/lack-of formatting in all of the HTML/CSS/JS files. As they are copied 1-to-1 to the ESP's flash I am trying to save a bit of file size by reducing the readability-formatting to a minimum. If you want, you can let your IDE format the files a bit more readably and then when done editing reduce to tab-size down to one or two spaces again.  
