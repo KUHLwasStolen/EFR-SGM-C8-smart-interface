@@ -1,3 +1,6 @@
+:root{
+  --heading-height: calc(1rem + 3vw);
+}
 *{
   line-height: 1rem;
   line-height: calc(.25rem + 1vw);
@@ -11,7 +14,7 @@ h1{
   line-height: 2rem;
   text-decoration: underline;
   font-size: 30px;
-  font-size: calc(.5rem + 3vw);
+  font-size: var(--heading-height);
 }
 h2{
   font-size: 24px;
@@ -49,7 +52,7 @@ footer{
   float: right;
 }
 .info{
-  padding: 0 .5rem 1rem .5rem;
+  padding: 0.25rem .5rem 1.2rem .5rem;
   border-bottom: solid lightgray;
 }
 .about{
@@ -83,19 +86,27 @@ details.value-menu{
 }
 fieldset{
   margin-bottom: 1rem;
+  width: fit-content;
+}
+input{
+  margin-top: .2rem;
 }
 .put-status{
   font-size: 100%;
+}
+.logo-heading *{
+  display: inline-block;
+  vertical-align: middle;
+}
+.logo-heading img{
+  margin-right: .75rem;
+  height: calc(1.1*var(--heading-height));
 }
 
 @media screen and (max-width: 500px){
 .value{
   margin-left: 3.5rem;
   margin-left: calc(2rem + 5vw);
-}
-h1{
-  font-size: 30px;
-  font-size: calc(.5rem + 6vw);
 }
 h2{
   margin-left: 1rem;

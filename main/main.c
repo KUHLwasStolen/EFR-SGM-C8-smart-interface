@@ -15,6 +15,7 @@
 #include "nvs_flash.h"
 #include "esp_netif_sntp.h"
 #include "esp_sntp.h"
+#include "cJSON.h"
 
 #define WIFI_MAXIMUM_RETRY 5
 uint8_t wifi_retries = 0;
@@ -38,8 +39,19 @@ extern const uint8_t settingsJsFile[] asm("_binary_settings_js_start");
 extern const uint8_t faviconSVG_start[] asm("_binary_favicon_svg_start");
 extern const uint8_t faviconSVG_end[] asm("_binary_favicon_svg_end");
 
+typedef struct settings_t {
+    float importCost;
+    float importCostT1;
+    float importCostT2;
+    float exportCost;
+    float exportCostT1;
+    float exportCostT2;
+    char currency[4];
+} settings_t;
+
 int32_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0; // in W
 float importOverall = 0.0f, importT1 = 0.0f, importT2 = 0.0f, exportOverall = 0.0f, exportT1 = 0.0f, exportT2 = 0.0f; // in kWh
+settings_t settings = {0};
 
 time_t upSince = 0;
 char upSinceStr[64] = {};
@@ -72,7 +84,7 @@ static void irReaderTask(void* args) {
     uint8_t valueID;
     uint8_t valueLength;
     int32_t tempPower;
-    uint32_t meterReadRaw = 0;
+    uint64_t meterReadRaw = 0;
 
     // defines how many values are saved at maximum, for the calculation of the median of 1.8.0 and 2.8.0
     #define MEDIAN_SIZE_MAX 15
@@ -168,7 +180,7 @@ static void irReaderTask(void* args) {
 
                                                                 // now fill meterReadRaw according to length
                                                                 for(uint8_t l = 0; l < k; l++) {
-                                                                    meterReadRaw += (uint32_t)(buffer[j+3+l]) << ((k-1-l)*8);
+                                                                    meterReadRaw += ((uint64_t)buffer[j+3+l]) << ((k-1-l)*8);
                                                                 }
 
                                                                 switch(buffer[i+4]) {
@@ -291,22 +303,22 @@ httpd_uri_t uri_GET_updater = {
     .user_ctx = NULL
 };
 
-// Handler for GET "api/all"
-esp_err_t GET_handler_api_all(httpd_req_t *req) {
+// Handler for GET "api/values"
+esp_err_t GET_handler_api_values(httpd_req_t *req) {
     char resp[1024];
     sprintf(resp, "{\"power\":{\"total\":%ld, \"l1\":%ld, \"l2\":%ld, \"l3\":%ld}, \"meter\":{\"import\":{\"total\":%.2f, \"t1\":%.2f, \"t2\":%.2f}, \"export\":{\"total\":%.2f, \"t1\":%.2f, \"t2\":%.2f}}, \"up\":\"%s\"}"
         , currentPower, currentPowerL1, currentPowerL2, currentPowerL3, importOverall, importT1, importT2, exportOverall, exportT1, exportT2, upSinceStr);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
-    ESP_LOGI("HTTP GET", "Sent GET response for \"/api/all\"");
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/api/values\"");
     return ESP_OK;
 }
 
-// URI handler structure for GET "/api/all"
-httpd_uri_t uri_GET_api_all = {
-    .uri      = "/api/all",
+// URI handler structure for GET "/api/values"
+httpd_uri_t uri_GET_api_values = {
+    .uri      = "/api/values",
     .method   = HTTP_GET,
-    .handler  = GET_handler_api_all,
+    .handler  = GET_handler_api_values,
     .user_ctx = NULL
 };
 
@@ -318,7 +330,7 @@ esp_err_t GET_handler_favicon(httpd_req_t *req) {
     return ESP_OK;
 }
 
-// URI handler structure for GET "/favicon.svg
+// URI handler structure for GET "/favicon.svg"
 httpd_uri_t uri_GET_favicon = {
     .uri      = "/favicon.svg",
     .method   = HTTP_GET,
@@ -344,7 +356,59 @@ httpd_uri_t uri_GET_settings = {
 
 // Handler for PUT "/settings"
 esp_err_t PUT_handler_settings(httpd_req_t *req) {
-    // TODO: implement actual settings handling
+    char content[256] = {};
+    size_t receivedSize = req->content_len < 256 ? req->content_len : 256;
+    if(httpd_req_recv(req, content, receivedSize) <= 0) {
+        httpd_resp_set_status(req, HTTPD_400);
+        httpd_resp_send(req, "", 0);
+        return ESP_FAIL;
+    }
+
+    cJSON* contentJson = cJSON_Parse(content);
+    if(contentJson == NULL) {
+        httpd_resp_set_status(req, "406 Not Acceptable");
+        httpd_resp_send(req, "", 0);
+        return ESP_FAIL;
+    }
+
+    const cJSON* currency = NULL;
+    cJSON* cost = NULL;
+    
+    currency = cJSON_GetObjectItemCaseSensitive(contentJson, "unit");
+    if(cJSON_IsString(currency) && currency->valuestring != NULL) {
+        sprintf(settings.currency, "%s", currency->valuestring);
+    }
+
+    cost = cJSON_GetObjectItemCaseSensitive(contentJson, "import");
+    if(cJSON_IsNumber(cost)) {
+        settings.importCost = (float)cost->valuedouble;
+    }
+
+    cost = cJSON_GetObjectItemCaseSensitive(contentJson, "importT1");
+    if(cJSON_IsNumber(cost)) {
+        settings.importCostT1 = (float)cost->valuedouble;
+    }
+
+    cost = cJSON_GetObjectItemCaseSensitive(contentJson, "importT2");
+    if(cJSON_IsNumber(cost)) {
+        settings.importCostT2 = (float)cost->valuedouble;
+    }
+
+    cost = cJSON_GetObjectItemCaseSensitive(contentJson, "export");
+    if(cJSON_IsNumber(cost)) {
+        settings.exportCost = (float)cost->valuedouble;
+    }
+
+    cost = cJSON_GetObjectItemCaseSensitive(contentJson, "exportT1");
+    if(cJSON_IsNumber(cost)) {
+        settings.exportCostT1 = (float)cost->valuedouble;
+    }
+
+    cost = cJSON_GetObjectItemCaseSensitive(contentJson, "exportT2");
+    if(cJSON_IsNumber(cost)) {
+        settings.exportCostT2 = (float)cost->valuedouble;
+    }
+
     httpd_resp_set_status(req, HTTPD_204);
     httpd_resp_send(req, "", 0);
     ESP_LOGI("HTTP PUT", "Sent PUT response for \"/settings\"");
@@ -375,10 +439,30 @@ httpd_uri_t uri_GET_settingsJs = {
     .user_ctx = NULL
 };
 
+// Handler for GET "api/settings"
+esp_err_t GET_handler_api_settings(httpd_req_t *req) {
+    char resp[1024];
+    sprintf(resp, "{\"costs\":{\"currency\":\"%s\", \"import\":{\"overall\":%.2f, \"T1\":%.2f, \"T2\":%.2f}, \"export\":{\"overall\":%.2f, \"T1\":%.2f, \"T2\":%.2f}}}"
+        , settings.currency, settings.importCost, settings.importCostT1, settings.importCostT2, settings.exportCost, settings.exportCostT1, settings.exportCostT2);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, resp, HTTPD_RESP_USE_STRLEN);
+    ESP_LOGI("HTTP GET", "Sent GET response for \"/api/settings\"");
+    return ESP_OK;
+}
+
+// URI handler structure for GET "/api/settings"
+httpd_uri_t uri_GET_api_settings = {
+    .uri      = "/api/settings",
+    .method   = HTTP_GET,
+    .handler  = GET_handler_api_settings,
+    .user_ctx = NULL
+};
+
 // Final server set up and start
 httpd_handle_t start_webserver() {
     // Generate default config
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.max_uri_handlers = 10;
 
     // Empty handle to esp_http_server
     httpd_handle_t server = NULL;
@@ -386,14 +470,14 @@ httpd_handle_t start_webserver() {
     // Start the httpd server
     if (httpd_start(&server, &config) == ESP_OK) {
         httpd_register_uri_handler(server, &uri_GET);
-        httpd_register_uri_handler(server, &uri_GET_api_all);
+        httpd_register_uri_handler(server, &uri_GET_api_values);
         httpd_register_uri_handler(server, &uri_GET_favicon);
         httpd_register_uri_handler(server, &uri_GET_styles);
         httpd_register_uri_handler(server, &uri_GET_updater);
         httpd_register_uri_handler(server, &uri_GET_settings);
         httpd_register_uri_handler(server, &uri_GET_settingsJs);
         httpd_register_uri_handler(server, &uri_PUT_settings);
-
+        httpd_register_uri_handler(server, &uri_GET_api_settings);
     }
 
     // handle == NULL if start failed
@@ -454,8 +538,8 @@ void wifi_init_sta(void) {
         },
     };
     // overwrite SSID and PASSWORD with actual values
-    strcpy((char *)wifi_config.sta.ssid, CONFIG_YOUR_AP_SSID);
-	strcpy((char *)wifi_config.sta.password, CONFIG_YOUR_AP_PASSWORD);
+    strcpy((char*)wifi_config.sta.ssid, CONFIG_YOUR_AP_SSID);
+	strcpy((char*)wifi_config.sta.password, CONFIG_YOUR_AP_PASSWORD);
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));

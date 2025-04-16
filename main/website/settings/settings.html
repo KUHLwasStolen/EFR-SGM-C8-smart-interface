@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
  <title>Settings</title>
- <link rel="icon" type="image/svg+xml" sizes="any" href="../favicon.svg">
- <link rel="stylesheet" href="../styles.css">
- <script type="text/javascript" src="settings.js"></script>
- <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <link rel="icon" type="image/svg+xml" sizes="any" href="favicon.svg">
+ <link rel="stylesheet" href="styles.css">
+ <script type="text/javascript" src="settings/settings.js"></script>
+ <meta name="viewport" content="width=device-width, initial-scale=1.0" charset="UTF-8">
 </head>
 
 <body>
-<h1>EFR-SGM-C8 Settings</h1>
+<div class="logo-heading"><a href=".."><img src="favicon.svg" alt="Logo, click to go back"></a><h1>EFR-SGM-C8 Settings</h1></div>
 <form action="javascript:void(0);">
 <fieldset>
- <legend>Import costs</legend>
+ <legend>Import costs / kWh</legend>
  <div><label for="1.8.0">1.8.0:</label>
  <input type="number" min="0" step="0.01" id="1.8.0" placeholder="0.00"></div>
  <div><label for="1.8.1">1.8.1:</label>
@@ -21,7 +21,7 @@
  <input type="number" min="0" step="0.01" id="1.8.2" placeholder="0.00"></div>
 </fieldset>
 <fieldset>
- <legend>Export prices</legend>
+ <legend>Export prices / kWh</legend>
  <div><label for="2.8.0">2.8.0:</label>
  <input type="number" min="0" step="0.01" id="2.8.0" placeholder="0.00"></div>
  <div><label for="2.8.1">2.8.1:</label>
@@ -30,11 +30,16 @@
  <input type="number" min="0" step="0.01" id="2.8.2" placeholder="0.00"></div>
 </fieldset>
 <fieldset>
- <div><label for="unit">Unit:</label>
+ <div><label for="unit">Currency:</label>
  <input type="text" id="unit" maxlength="3" placeholder="€" required></div>
 </fieldset>
-<div><button class="button" onclick="sendSettings()">Set</button></div>
+<div><button class="button" onclick="sendSettings()">Save</button></div>
 </form>
 <p class="put-status"></p>
+<details class="about">
+ <summary>What do these settings do?</summary>
+ <p>If you set any of the above values you will get a calculation on the main page of what you have paid for electricity or depending on how your net provider handles electricity that you supply to the grid how much you have earned or given away.</p>
+ <p>You can also only set some of these values and the according (unset) calculations will be omitted. The only required field is your currency.</p>
+</details>
 </body>
 </html>
