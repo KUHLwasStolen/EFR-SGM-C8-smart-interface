@@ -16,12 +16,12 @@ function reqListener() {
   document.getElementById("uptime-value").innerHTML = jsonObj.up;
   document.getElementById("uptime-value").style.color = "green";
 
-  document.getElementById("import-cost").innerHTML = (importPrice * parseFloat(jsonObj.meter.import.total)).toFixed(2);
-  document.getElementById("import-cost-t1").innerHTML = (importPriceT1 * parseFloat(jsonObj.meter.import.t1)).toFixed(2);
-  document.getElementById("import-cost-t2").innerHTML = (importPriceT2 * parseFloat(jsonObj.meter.import.t2)).toFixed(2);
-  document.getElementById("export-cost").innerHTML = (exportPrice * parseFloat(jsonObj.meter.export.total)).toFixed(2);
-  document.getElementById("export-cost-t1").innerHTML = (exportPriceT1 * parseFloat(jsonObj.meter.export.t1)).toFixed(2);
-  document.getElementById("export-cost-t2").innerHTML = (exportPriceT2 * parseFloat(jsonObj.meter.export.t2)).toFixed(2);
+  document.getElementById("import-cost-val0").innerHTML = (importPrice * parseFloat(jsonObj.meter.import.total)).toFixed(2);
+  document.getElementById("import-cost-val1").innerHTML = (importPriceT1 * parseFloat(jsonObj.meter.import.t1)).toFixed(2);
+  document.getElementById("import-cost-val2").innerHTML = (importPriceT2 * parseFloat(jsonObj.meter.import.t2)).toFixed(2);
+  document.getElementById("export-cost-val0").innerHTML = (exportPrice * parseFloat(jsonObj.meter.export.total)).toFixed(2);
+  document.getElementById("export-cost-val1").innerHTML = (exportPriceT1 * parseFloat(jsonObj.meter.export.t1)).toFixed(2);
+  document.getElementById("export-cost-val2").innerHTML = (exportPriceT2 * parseFloat(jsonObj.meter.export.t2)).toFixed(2);
 
 	var currentPower = parseInt(jsonObj.power.total);
 	if (currentPower < 0) {

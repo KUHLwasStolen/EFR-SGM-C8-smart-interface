@@ -46,7 +46,7 @@ typedef struct settings_t {
     float exportCost;
     float exportCostT1;
     float exportCostT2;
-    char currency[4];
+    char currency[8];
 } settings_t;
 
 int32_t currentPower = 0, currentPowerL1 = 0, currentPowerL2 = 0, currentPowerL3 = 0; // in W
@@ -86,7 +86,7 @@ static void irReaderTask(void* args) {
     int32_t tempPower;
     uint64_t meterReadRaw = 0;
 
-    // defines how many values are saved at maximum, for the calculation of the median of 1.8.0 and 2.8.0
+    // defines how many values are saved at maximum, for the calculation of the median of the meter readings
     #define MEDIAN_SIZE_MAX 15
     float importMedianArr[MEDIAN_SIZE_MAX] = {};
     float importT1MedianArr[MEDIAN_SIZE_MAX] = {};
@@ -356,6 +356,7 @@ httpd_uri_t uri_GET_settings = {
 
 // Handler for PUT "/settings"
 esp_err_t PUT_handler_settings(httpd_req_t *req) {
+    // Parse JSON
     char content[256] = {};
     size_t receivedSize = req->content_len < 256 ? req->content_len : 256;
     if(httpd_req_recv(req, content, receivedSize) <= 0) {
@@ -408,6 +409,26 @@ esp_err_t PUT_handler_settings(httpd_req_t *req) {
     if(cJSON_IsNumber(cost)) {
         settings.exportCostT2 = (float)cost->valuedouble;
     }
+
+    // Write settings to NVS
+    nvs_handle_t settingsHandle;
+    esp_err_t ret = nvs_open("siteSettings", NVS_READWRITE, &settingsHandle);
+    if(ret != ESP_OK) {
+        httpd_resp_set_status(req, HTTPD_500);
+        httpd_resp_send(req, "", 0);
+        return ESP_FAIL;
+    }
+
+    nvs_set_u32(settingsHandle, "importCost", (uint32_t)(settings.importCost * 100.0f));
+    nvs_set_u32(settingsHandle, "importCostT1", (uint32_t)(settings.importCostT1 * 100.0f));
+    nvs_set_u32(settingsHandle, "importCostT2", (uint32_t)(settings.importCostT2 * 100.0f));
+    nvs_set_u32(settingsHandle, "exportCost", (uint32_t)(settings.exportCost * 100.0f));
+    nvs_set_u32(settingsHandle, "exportCostT1", (uint32_t)(settings.exportCostT1 * 100.0f));
+    nvs_set_u32(settingsHandle, "exportCostT2", (uint32_t)(settings.exportCostT2 * 100.0f));
+    nvs_set_str(settingsHandle, "currency", settings.currency);
+
+    nvs_commit(settingsHandle);
+    nvs_close(settingsHandle);
 
     httpd_resp_set_status(req, HTTPD_204);
     httpd_resp_send(req, "", 0);
@@ -565,14 +586,6 @@ void wifi_init_sta(void) {
 }
 
 static void httpServerTask(void* args) {
-    //Initialize NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
     esp_netif_init();
     esp_event_loop_create_default();
 
@@ -626,6 +639,43 @@ void app_main(void) {
     if(strcmp(CONFIG_YOUR_AP_SSID, "MyExampleAccessPoint1234") == 0) ESP_LOGW("CONFIG", "Your AP SSID matches the default, make sure your config is correct (see README.md).");
     if(strcmp(CONFIG_YOUR_AP_PASSWORD, "MySuperSecureExamplePassword1234") == 0) ESP_LOGW("CONFIG", "Your AP password matches the default, make sure your config is correct (see README.md).");
     if(strcmp(CONFIG_YOUR_TIME_ZONE, "UTC0") == 0) ESP_LOGW("CONFIG", "Your timezone matches the default, if you want to use UTC0 there is nothing to worry about, if need a different timezone check your config (see README.md).");
+
+    //Initialize NVS
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+      ESP_ERROR_CHECK(nvs_flash_erase());
+      ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    // Load settings from NVS
+    nvs_handle_t settingsHandle;
+    ret = nvs_open("siteSettings", NVS_READONLY, &settingsHandle);
+    if(ret != ESP_OK) {
+        ESP_LOGW("NVS settings", "Could not load settings from NVS. Not a problem if no settings have been saved yet.");
+    } else {
+        ESP_LOGI("NVS settings", "Loading settings...");
+        uint32_t costsRaw = 0;
+
+        ret = nvs_get_u32(settingsHandle, "importCost", &costsRaw);
+        if(ret == ESP_OK) settings.importCost = ((float)costsRaw) / 100.0f;
+        ret = nvs_get_u32(settingsHandle, "importCostT1", &costsRaw);
+        if(ret == ESP_OK) settings.importCostT1 = ((float)costsRaw) / 100.0f;
+        ret = nvs_get_u32(settingsHandle, "importCostT2", &costsRaw);
+        if(ret == ESP_OK) settings.importCostT2 = ((float)costsRaw) / 100.0f;
+        ret = nvs_get_u32(settingsHandle, "exportCost", &costsRaw);
+        if(ret == ESP_OK) settings.exportCost = ((float)costsRaw) / 100.0f;
+        ret = nvs_get_u32(settingsHandle, "exportCostT1", &costsRaw);
+        if(ret == ESP_OK) settings.exportCostT1 = ((float)costsRaw) / 100.0f;
+        ret = nvs_get_u32(settingsHandle, "exportCostT2", &costsRaw);
+        if(ret == ESP_OK) settings.exportCostT2 = ((float)costsRaw) / 100.0f;
+
+        size_t currencySize;
+        ret = nvs_get_str(settingsHandle, "currency", NULL, &currencySize);
+        if(ret == ESP_OK && !(currencySize > (size_t)8)) nvs_get_str(settingsHandle, "currency", settings.currency, &currencySize);
+
+        nvs_close(settingsHandle);
+    }
 
     xTaskCreatePinnedToCore(irReaderTask, "irReaderTask", 20000, NULL, 10, NULL, 1);
     xTaskCreatePinnedToCore(httpServerTask, "httpServerTask", 10000, NULL, 10, NULL, 0);
