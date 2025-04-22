@@ -26,10 +26,14 @@ uint8_t wifi_retries = 0;
 httpd_handle_t serverHandle = NULL;
 static EventGroupHandle_t s_wifi_event_group;
 
-void insertAtFirstIndex(float* arr, uint16_t len, float value);
-float median(float* arr, uint16_t len);
+void insertFloatAtFirstIndex(float* arr, uint16_t len, float value);
+void insertI32AtFirstIndex(int32_t* arr, uint16_t len, int32_t value);
+float medianFloat(float* arr, uint16_t len);
+int32_t medianI32(int32_t* arr, uint16_t len);
 int compareFloat(const void* f1, const void* f2);
-void addToMedianArr(float* arr, uint8_t* sizeCounter, float value);
+int compareI32(const void* i1, const void* i2);
+void addFloatToMedianArr(float* arr, uint8_t* sizeCounter, uint8_t sizeMax, float value);
+void addI32ToMedianArr(int32_t* arr, uint8_t* sizeCounter, uint8_t sizeMax, int32_t value);
 
 extern const uint8_t indexHtmlFile[] asm("_binary_index_html_start");
 extern const uint8_t stylesCssFile[] asm("_binary_styles_css_start");
@@ -87,14 +91,21 @@ static void irReaderTask(void* args) {
     uint64_t meterReadRaw = 0;
 
     // defines how many values are saved at maximum, for the calculation of the median of the meter readings
-    #define MEDIAN_SIZE_MAX 15
-    float importMedianArr[MEDIAN_SIZE_MAX] = {};
-    float importT1MedianArr[MEDIAN_SIZE_MAX] = {};
-    float importT2MedianArr[MEDIAN_SIZE_MAX] = {};
-    float exportMedianArr[MEDIAN_SIZE_MAX] = {};
-    float exportT1MedianArr[MEDIAN_SIZE_MAX] = {};
-    float exportT2MedianArr[MEDIAN_SIZE_MAX] = {};
+    #define BIG_MEDIAN_SIZE_MAX 15
+    float importMedianArr[BIG_MEDIAN_SIZE_MAX] = {};
+    float importT1MedianArr[BIG_MEDIAN_SIZE_MAX] = {};
+    float importT2MedianArr[BIG_MEDIAN_SIZE_MAX] = {};
+    float exportMedianArr[BIG_MEDIAN_SIZE_MAX] = {};
+    float exportT1MedianArr[BIG_MEDIAN_SIZE_MAX] = {};
+    float exportT2MedianArr[BIG_MEDIAN_SIZE_MAX] = {};
     uint8_t importMedianSize = 0, importT1MedianSize = 0, importT2MedianSize = 0, exportMedianSize = 0, exportT1MedianSize = 0, exportT2MedianSize = 0;
+
+    #define SMALL_MEDIAN_SIZE_MAX 5
+    int32_t currentPowerMedianArr[SMALL_MEDIAN_SIZE_MAX] = {};
+    int32_t currentPowerL1MedianArr[SMALL_MEDIAN_SIZE_MAX] = {};
+    int32_t currentPowerL2MedianArr[SMALL_MEDIAN_SIZE_MAX] = {};
+    int32_t currentPowerL3MedianArr[SMALL_MEDIAN_SIZE_MAX] = {};
+    uint8_t currentPowerMedianSize = 0, currentPowerL1MedianSize = 0, currentPowerL2MedianSize = 0, currentPowerL3MedianSize = 0;
 
     while(1) {
         readLength = uart_read_bytes(irUART, buffer, uart_buffer_size - 1, 300 / portTICK_PERIOD_MS);
@@ -146,19 +157,23 @@ static void irReaderTask(void* args) {
 
                                                 switch(buffer[i+4]) {
                                                     case 0x10:
-                                                        currentPower = tempPower;
+                                                        addI32ToMedianArr(currentPowerMedianArr, &currentPowerMedianSize, SMALL_MEDIAN_SIZE_MAX, tempPower);
+                                                        currentPower = medianI32(currentPowerMedianArr, currentPowerMedianSize);
                                                     break;
 
                                                     case 0x24:
-                                                        currentPowerL1 = tempPower;
+                                                        addI32ToMedianArr(currentPowerL1MedianArr, &currentPowerL1MedianSize, SMALL_MEDIAN_SIZE_MAX, tempPower);
+                                                        currentPowerL1 = medianI32(currentPowerL1MedianArr, currentPowerL1MedianSize);
                                                     break;
 
                                                     case 0x38:
-                                                        currentPowerL2 = tempPower;
+                                                        addI32ToMedianArr(currentPowerL2MedianArr, &currentPowerL2MedianSize, SMALL_MEDIAN_SIZE_MAX, tempPower);
+                                                        currentPowerL2 = medianI32(currentPowerL2MedianArr, currentPowerL2MedianSize);
                                                     break;
 
                                                     case 0x4C:
-                                                        currentPowerL3 = tempPower;
+                                                        addI32ToMedianArr(currentPowerL3MedianArr, &currentPowerL3MedianSize, SMALL_MEDIAN_SIZE_MAX, tempPower);
+                                                        currentPowerL3 = medianI32(currentPowerL3MedianArr, currentPowerL3MedianSize);
                                                     break;
                                                 }
                                             }
@@ -187,20 +202,20 @@ static void irReaderTask(void* args) {
                                                                     case 0x01: // import
                                                                         switch(buffer[i+6]) {
                                                                             case 0x00:
-                                                                                addToMedianArr(importMedianArr, &importMedianSize, meterReadRaw / 10000.0f);
-                                                                                importOverall = median(importMedianArr, importMedianSize);
+                                                                                addFloatToMedianArr(importMedianArr, &importMedianSize, BIG_MEDIAN_SIZE_MAX, meterReadRaw / 10000.0f);
+                                                                                importOverall = medianFloat(importMedianArr, importMedianSize);
                                                                             break;
 
                                                                             case 0x01:
-                                                                                addToMedianArr(importT1MedianArr, &importT1MedianSize, meterReadRaw / 10000.0f);
-                                                                                importT1 = median(importT1MedianArr, importT1MedianSize);
-                                                                                if(importT1 > 1 && importT2 > 1) addToMedianArr(importMedianArr, &importMedianSize, importT1 + importT2);
+                                                                                addFloatToMedianArr(importT1MedianArr, &importT1MedianSize, BIG_MEDIAN_SIZE_MAX, meterReadRaw / 10000.0f);
+                                                                                importT1 = medianFloat(importT1MedianArr, importT1MedianSize);
+                                                                                if(importT1 > 1 && importT2 > 1) addFloatToMedianArr(importMedianArr, &importMedianSize, BIG_MEDIAN_SIZE_MAX, importT1 + importT2);
                                                                             break;
 
                                                                             case 0x02:
-                                                                                addToMedianArr(importT2MedianArr, &importT2MedianSize, meterReadRaw / 10000.0f);
-                                                                                importT2 = median(importT2MedianArr, importT2MedianSize);
-                                                                                if(importT1 > 1 && importT2 > 1) addToMedianArr(importMedianArr, &importMedianSize, importT1 + importT2);
+                                                                                addFloatToMedianArr(importT2MedianArr, &importT2MedianSize, BIG_MEDIAN_SIZE_MAX, meterReadRaw / 10000.0f);
+                                                                                importT2 = medianFloat(importT2MedianArr, importT2MedianSize);
+                                                                                if(importT1 > 1 && importT2 > 1) addFloatToMedianArr(importMedianArr, &importMedianSize, BIG_MEDIAN_SIZE_MAX, importT1 + importT2);
                                                                             break;
                                                                         }
                                                                     break;
@@ -208,20 +223,20 @@ static void irReaderTask(void* args) {
                                                                     case 0x02: // export
                                                                         switch(buffer[i+6]) {
                                                                             case 0x00:
-                                                                                addToMedianArr(exportMedianArr, &exportMedianSize, meterReadRaw / 10000.0f);
-                                                                                exportOverall = median(exportMedianArr, exportMedianSize);
+                                                                                addFloatToMedianArr(exportMedianArr, &exportMedianSize, BIG_MEDIAN_SIZE_MAX, meterReadRaw / 10000.0f);
+                                                                                exportOverall = medianFloat(exportMedianArr, exportMedianSize);
                                                                             break;
 
                                                                             case 0x01:
-                                                                                addToMedianArr(exportT1MedianArr, &exportT1MedianSize, meterReadRaw / 10000.0f);
-                                                                                exportT1 = median(exportT1MedianArr, exportT1MedianSize);
-                                                                                if(exportT1 > 1 && exportT2 > 1) addToMedianArr(exportMedianArr, &exportMedianSize, exportT1 + exportT2);
+                                                                                addFloatToMedianArr(exportT1MedianArr, &exportT1MedianSize, BIG_MEDIAN_SIZE_MAX, meterReadRaw / 10000.0f);
+                                                                                exportT1 = medianFloat(exportT1MedianArr, exportT1MedianSize);
+                                                                                if(exportT1 > 1 && exportT2 > 1) addFloatToMedianArr(exportMedianArr, &exportMedianSize, BIG_MEDIAN_SIZE_MAX, exportT1 + exportT2);
                                                                             break;
 
                                                                             case 0x02:
-                                                                                addToMedianArr(exportT2MedianArr, &exportT2MedianSize, meterReadRaw / 10000.0f);
-                                                                                exportT2 = median(exportT2MedianArr, exportT2MedianSize);
-                                                                                if(exportT1 > 1 && exportT2 > 1) addToMedianArr(exportMedianArr, &exportMedianSize, exportT1 + exportT2);
+                                                                                addFloatToMedianArr(exportT2MedianArr, &exportT2MedianSize, BIG_MEDIAN_SIZE_MAX, meterReadRaw / 10000.0f);
+                                                                                exportT2 = medianFloat(exportT2MedianArr, exportT2MedianSize);
+                                                                                if(exportT1 > 1 && exportT2 > 1) addFloatToMedianArr(exportMedianArr, &exportMedianSize, BIG_MEDIAN_SIZE_MAX, exportT1 + exportT2);
                                                                             break;
                                                                         }
                                                                     break;
@@ -684,14 +699,20 @@ void app_main(void) {
 
 // ### Array handling helpers to calculate median for 1.8.0 and 2.8.0
 // shifts everything one index up and then inserts the value at 0
-void insertAtFirstIndex(float* arr, uint16_t len, float value) {
+void insertFloatAtFirstIndex(float* arr, uint16_t len, float value) {
+    for(int32_t i = len - 2; i >= 0; i--) arr[i+1] = arr[i];
+
+    arr[0] = value;
+}
+
+void insertI32AtFirstIndex(int32_t* arr, uint16_t len, int32_t value) {
     for(int32_t i = len - 2; i >= 0; i--) arr[i+1] = arr[i];
 
     arr[0] = value;
 }
 
 // takes an unsorted array and calculates the median over it
-float median(float* arr, uint16_t len) {
+float medianFloat(float* arr, uint16_t len) {
     // we need to sort the array to calculate the median, but we leave the input array untouched
     float sortArr[len] = {};
     memcpy(sortArr, arr, len * sizeof(float));
@@ -701,6 +722,19 @@ float median(float* arr, uint16_t len) {
         return sortArr[(len/2)];
     } else { // if len is even, need to calculate average over middle two elemets
         return (sortArr[(len/2) - 1] + sortArr[(len/2)]) / 2.0f;
+    }
+}
+
+int32_t medianI32(int32_t* arr, uint16_t len) {
+    // we need to sort the array to calculate the median, but we leave the input array untouched
+    int32_t sortArr[len] = {};
+    memcpy(sortArr, arr, len * sizeof(int32_t));
+    qsort(sortArr, len, sizeof(int32_t), compareI32);
+
+    if(len % 2) { // if len is odd, only need to evaluate one element
+        return sortArr[(len/2)];
+    } else { // if len is even, need to calculate average over middle two elemets
+        return (sortArr[(len/2) - 1] + sortArr[(len/2)]) / 2;
     }
 }
 
@@ -714,7 +748,21 @@ int compareFloat(const void* f1, const void* f2) {
     return 0;
 }
 
-void addToMedianArr(float* arr, uint8_t* sizeCounter, float value) {
-    insertAtFirstIndex(arr, *sizeCounter, value);
-    if(*sizeCounter < MEDIAN_SIZE_MAX) (*sizeCounter)++;
+int compareI32(const void* i1, const void* i2) {
+    int32_t int1 = *((int32_t*)i1);
+    int32_t int2 = *((int32_t*)i2);
+
+    if(int1 > int2) return 1;
+    if(int2 > int1) return -1;
+    return 0;
+}
+
+void addFloatToMedianArr(float* arr, uint8_t* sizeCounter, uint8_t sizeMax,float value) {
+    insertFloatAtFirstIndex(arr, *sizeCounter, value);
+    if(*sizeCounter < sizeMax) (*sizeCounter)++;
+}
+
+void addI32ToMedianArr(int32_t* arr, uint8_t* sizeCounter, uint8_t sizeMax, int32_t value) {
+    insertI32AtFirstIndex(arr, *sizeCounter, value);
+    if(*sizeCounter < sizeMax) (*sizeCounter)++;
 }
