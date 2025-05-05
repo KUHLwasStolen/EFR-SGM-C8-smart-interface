@@ -4,13 +4,12 @@
  <title>Settings</title>
  <link rel="icon" type="image/svg+xml" sizes="any" href="favicon.svg">
  <link rel="stylesheet" href="styles.css">
- <script type="text/javascript" src="settings/settings.js"></script>
+ <script type="text/javascript" src="settings/settings.js" defer></script>
  <meta name="viewport" content="width=device-width, initial-scale=1.0" charset="UTF-8">
 </head>
 
 <body>
 <div class="logo-heading"><a href=".."><img src="favicon.svg" alt="Logo, click to go back"></a><h1>EFR-SGM-C8 Settings</h1></div>
-<form action="javascript:void(0);">
 <fieldset>
  <legend>Import costs / kWh</legend>
  <div><label for="1.8.0">1.8.0:</label>
@@ -33,8 +32,7 @@
  <div><label for="unit">Currency:</label>
  <input type="text" id="unit" maxlength="3" placeholder="€" required></div>
 </fieldset>
-<div><button class="button" onclick="sendSettings()">Save</button></div>
-</form>
+<div><button class="button" id="submit-button">Save</button></div>
 <p class="put-status"></p>
 <details class="about">
  <summary>What do these settings do?</summary>

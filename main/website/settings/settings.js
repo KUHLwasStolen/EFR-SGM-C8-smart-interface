@@ -33,3 +33,5 @@ async function sendSettings() {
         statusElement.style.color = "red";
     }
 }
+
+document.getElementById("submit-button").addEventListener("click", () => sendSettings());

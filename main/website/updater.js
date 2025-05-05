@@ -1,4 +1,4 @@
-var importPrice = 0.0, importPriceT1 = 0.0, importPriceT2 = 0.0, exportPrice = 0.0, exportPriceT1 = 0.0, exportPriceT2 = 0.0;
+let importPrice = 0.0, importPriceT1 = 0.0, importPriceT2 = 0.0, exportPrice = 0.0, exportPriceT1 = 0.0, exportPriceT2 = 0.0;
 
 function reqListener() {
 	const jsonObj = JSON.parse(this.responseText);
@@ -23,7 +23,7 @@ function reqListener() {
   document.getElementById("export-cost-val1").innerHTML = (exportPriceT1 * parseFloat(jsonObj.meter.export.t1)).toFixed(2);
   document.getElementById("export-cost-val2").innerHTML = (exportPriceT2 * parseFloat(jsonObj.meter.export.t2)).toFixed(2);
 
-	var currentPower = parseInt(jsonObj.power.total);
+	let currentPower = parseInt(jsonObj.power.total);
 	if (currentPower < 0) {
 		document.getElementById("power-text").style.color = "green";
 		document.getElementById("power-status").innerHTML = "export";
