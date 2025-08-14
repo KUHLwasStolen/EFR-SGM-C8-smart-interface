@@ -87,6 +87,7 @@ static void irReaderTask(void* args) {
     uint16_t readLength = 0;
     uint8_t valueID;
     uint8_t valueLength;
+    uint8_t iOffset;
     int32_t tempPower;
     uint64_t meterReadRaw = 0;
 
@@ -117,7 +118,7 @@ static void irReaderTask(void* args) {
             valueLength = 0;
 
             for(uint16_t i = 0; i < readLength; i++) {
-                //printf("%02X ", buffer[i]);
+                // printf("%02X ", buffer[i]);
 
                 // Power:           77 07 01 00 10 07 00 FF
                 // L1:              77 07 01 00 24 07 00 FF
@@ -140,19 +141,30 @@ static void irReaderTask(void* args) {
                                                 valueID = buffer[i+13];
                                                 valueLength = ((uint8_t)(valueID << 4)) >> 4;
                                                 tempPower = 0;
+
+                                                if(valueLength == 0) {
+                                                    valueID = buffer[i+14];
+                                                    valueLength = ((uint8_t)(valueID << 4)) >> 4;
+                                                    iOffset = 1;
+                                                } else {
+                                                    iOffset = 0;
+                                                }
                                                 
                                                 switch(valueLength) {
                                                     case 2:
-                                                        tempPower = (int32_t)(int8_t)buffer[i+14];
+                                                        tempPower = (int32_t)(int8_t)buffer[i+14+iOffset];
                                                     break;
 
                                                     case 3:
-                                                        tempPower = ((int32_t)((int8_t)buffer[i+14]) << 8) + (uint32_t)buffer[i+15];
+                                                        tempPower = ((int32_t)((int8_t)buffer[i+14+iOffset]) << 8) + (uint32_t)buffer[i+15+iOffset];
                                                     break;
 
                                                     case 4:
-                                                        tempPower = ((int32_t)((int8_t)buffer[i+14]) << 16) + ((uint32_t)(buffer[i+15]) << 8) + (uint32_t)buffer[i+16];
+                                                        tempPower = ((int32_t)((int8_t)buffer[i+14+iOffset]) << 16) + ((uint32_t)(buffer[i+15+iOffset]) << 8) + (uint32_t)buffer[i+16+iOffset];
                                                     break;
+
+                                                    default:
+                                                        ESP_LOGW("Parsing", "Unexpected value length: %d", valueLength);
                                                 }
 
                                                 switch(buffer[i+4]) {
@@ -258,7 +270,7 @@ static void irReaderTask(void* args) {
                     }
                 }
             }
-            //printf("\n\n");
+            // printf("\n\n");
 
             ESP_LOGI("Power", "Overall: %ld  L1: %ld  L2: %ld  L3: %ld", currentPower, currentPowerL1, currentPowerL2, currentPowerL3);
             ESP_LOGI("Meter readings", "Import: %.3f  T1: %.3f  T2: %.3f  Export: %.3f  T1: %.3f  T2: %.3f", importOverall, importT1, importT2, exportOverall, exportT1, exportT2);
